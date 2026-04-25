@@ -80,7 +80,7 @@ class SepsisScorer:
             logger.warning(
                 "Buffer not full (%d/%d), scoring with available data",
                 len(vital_buffer.get_history()),
-                vital_buffer._size,
+                vital_buffer.get_size(),
             )
 
         try:

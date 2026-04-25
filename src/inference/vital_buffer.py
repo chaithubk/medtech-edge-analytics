@@ -104,6 +104,10 @@ class VitalBuffer:
         """Return all vitals currently in the buffer."""
         return list(self._buffer)
 
+    def get_size(self) -> int:
+        """Return the maximum capacity of this buffer."""
+        return self._size
+
     def get_all_features(self) -> np.ndarray:
         """Return 20-feature vector shaped (1, 20) for TFLite model input.
 
@@ -112,6 +116,10 @@ class VitalBuffer:
           5-9:   bp_sys_mean, bp_sys_std, bp_sys_min, bp_sys_max, bp_sys_trend
           10-14: bp_dia_mean, bp_dia_std, bp_dia_min, bp_dia_max, bp_dia_trend
           15-19: o2_mean, o2_std, o2_min, o2_max, o2_trend
+
+        Note: temperature is in REQUIRED_FIELDS and available via get_stats() for
+        monitoring/alerting, but is intentionally excluded from the 20-feature ML
+        vector to match the trained model's input specification.
 
         Returns:
             np.ndarray of shape (1, 20) dtype float32.

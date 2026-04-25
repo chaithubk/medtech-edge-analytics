@@ -4,6 +4,7 @@ import argparse
 import json
 import signal
 import sys
+import threading
 import time
 
 from src.inference.sepsis_scorer import SepsisScorer
@@ -45,12 +46,11 @@ _SCENARIOS = {
     },
 }
 
-_running = True
+_stop_event = threading.Event()
 
 
 def _signal_handler(sig, frame):
-    global _running
-    _running = False
+    _stop_event.set()
 
 
 def main():
@@ -136,7 +136,7 @@ def main():
 
     logger.info("Running... Press Ctrl+C to stop")
 
-    while _running:
+    while not _stop_event.is_set():
         now = time.time()
         if scenario_vitals and (now - last_publish) >= Config.VITAL_INTERVAL_S:
             vital = dict(scenario_vitals)
