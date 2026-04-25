@@ -41,18 +41,24 @@ def parse_vital(payload_str: str) -> dict:
     try:
         data: Dict[str, Any] = json.loads(payload_str)
     except json.JSONDecodeError as exc:
+        logger.warning("Failed to parse vital payload: %s", exc)
         raise ValueError(f"Invalid JSON payload: {exc}") from exc
 
     for field in _VITAL_REQUIRED_FIELDS:
         if field not in data:
+            logger.warning("Missing required vital field: '%s'", field)
             raise ValueError(f"Missing required field: '{field}'")
 
     for field, (lo, hi) in _VITAL_RANGES.items():
         try:
             value = float(data[field])
         except (TypeError, ValueError) as exc:
+            logger.warning("Non-numeric value for vital field '%s': %s", field, data[field])
             raise ValueError(f"Non-numeric value for '{field}': {data[field]}") from exc
         if not (lo <= value <= hi):
+            logger.warning(
+                "Vital field '%s' out of range [%s, %s]: %s", field, lo, hi, value
+            )
             raise ValueError(
                 f"Value for '{field}' out of range [{lo}, {hi}]: {value}"
             )

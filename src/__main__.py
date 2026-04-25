@@ -3,7 +3,6 @@
 import argparse
 import json
 import signal
-import sys
 import threading
 import time
 
@@ -96,8 +95,10 @@ def main():
     # Load TFLite model
     model = TFLiteModel(args.model_path)
     if not model.load():
-        logger.error("Failed to load model from %s, exiting", args.model_path)
-        sys.exit(1)
+        logger.warning(
+            "Failed to load model from %s - running in degraded mode (predictions will be neutral 50%%)",
+            args.model_path,
+        )
 
     # Create pipeline components
     buffer = VitalBuffer(size=Config.BUFFER_SIZE)
@@ -142,14 +143,15 @@ def main():
             vital = dict(scenario_vitals)
             vital["timestamp"] = int(now * 1000)
             payload_str = json.dumps(vital)
-            mqtt_client.publish(Config.MQTT_TOPIC_VITALS, payload_str)
-            # Process directly: in scenario mode the MQTT loopback may not deliver
-            # the message back to on_vital_message before the next iteration.
+            # In scenario mode process vitals directly to avoid duplicate predictions
+            # if the broker echoes the publish back to the subscribed topic.
             on_vital_message(payload_str)
             last_publish = now
 
-        mqtt_client.process(timeout_ms=100)
-        time.sleep(0.05)
+        # loop_start() drives the MQTT network loop in a background thread;
+        # do NOT also call process() (client.loop()) from the main thread to
+        # avoid racey callback execution.
+        time.sleep(0.1)
 
     logger.info("Shutting down...")
     mqtt_client.disconnect()

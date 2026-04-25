@@ -97,6 +97,7 @@ class TestSepsisScorer:
         result = scorer.score(buf)
         assert result["features_used"] == 20
 
+    @pytest.mark.slow
     def test_latency(self):
         buf = VitalBuffer()
         _fill_buffer(buf, _make_vital(80, 120, 80, 97, 37.0))

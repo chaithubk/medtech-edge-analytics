@@ -118,6 +118,34 @@ class TestMQTTClient:
         client._on_message(None, None, mock_msg)
         assert received == ['{"hr": 80.0}']
 
+    def test_on_message_wildcard_dispatch(self):
+        """on_message should dispatch to wildcard subscriptions via topic_matches_sub."""
+        client = MQTTClient("localhost", 1883)
+        received = []
+        client._subscriptions["vitals/#"] = lambda payload: received.append(payload)
+
+        mock_msg = MagicMock()
+        mock_msg.topic = "vitals/room1/sensor2"
+        mock_msg.payload = b'{"hr": 75.0}'
+
+        client._on_message(None, None, mock_msg)
+        assert received == ['{"hr": 75.0}']
+
+    def test_on_message_no_duplicate_dispatch(self):
+        """Same callback registered to two matching wildcards should only be called once."""
+        client = MQTTClient("localhost", 1883)
+        received = []
+        callback = lambda payload: received.append(payload)
+        client._subscriptions["vitals/#"] = callback
+        client._subscriptions["vitals/+"] = callback  # same callback object
+
+        mock_msg = MagicMock()
+        mock_msg.topic = "vitals/room1"
+        mock_msg.payload = b'{"hr": 80.0}'
+
+        client._on_message(None, None, mock_msg)
+        assert len(received) == 1  # deduplication by callback identity
+
     def test_on_connect_sets_connected(self):
         client = MQTTClient("localhost", 1883)
         client._on_connect(client._client, None, {}, 0)

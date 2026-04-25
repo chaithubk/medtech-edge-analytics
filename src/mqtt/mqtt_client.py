@@ -52,10 +52,16 @@ class MQTTClient:
             if self._connected:
                 logger.info("Connected to MQTT broker %s:%d", self._host, self._port)
                 return True
+            # Timed out - stop the background loop to avoid a leaked thread
             logger.error("Timed out waiting for MQTT connection")
+            self._client.loop_stop()
             return False
         except Exception as exc:
             logger.error("MQTT connect failed: %s", exc)
+            try:
+                self._client.loop_stop()
+            except Exception:
+                pass
             return False
 
     def disconnect(self) -> bool:
@@ -155,13 +161,22 @@ class MQTTClient:
             logger.info("MQTT disconnected cleanly")
 
     def _on_message(self, client: mqtt.Client, userdata: object, msg: mqtt.MQTTMessage) -> None:
-        """Dispatch incoming message to registered topic callback."""
+        """Dispatch incoming message to all callbacks whose subscription matches the topic.
+
+        Supports MQTT wildcard patterns ('+' and '#') via paho's topic_matches_sub().
+        """
         try:
             payload_str = msg.payload.decode("utf-8")
-            callback = self._subscriptions.get(msg.topic)
-            if callback:
-                callback(payload_str)
-            else:
+            matched = False
+            seen_callbacks: set = set()
+            for subscription_topic, callback in self._subscriptions.items():
+                if mqtt.topic_matches_sub(subscription_topic, msg.topic):
+                    callback_id = id(callback)
+                    if callback_id not in seen_callbacks:
+                        seen_callbacks.add(callback_id)
+                        matched = True
+                        callback(payload_str)
+            if not matched:
                 logger.debug("No callback for topic: %s", msg.topic)
         except Exception as exc:
             logger.error("Error in message callback for %s: %s", msg.topic, exc)

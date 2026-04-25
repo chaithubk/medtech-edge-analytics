@@ -97,6 +97,9 @@ class VitalBuffer:
             "o2_max": float(np.max(o2)),
             "o2_trend": _trend(o2),
             "temp_mean": float(np.mean(temp)),
+            "temp_std": float(np.std(temp)),
+            "temp_min": float(np.min(temp)),
+            "temp_max": float(np.max(temp)),
             "temp_trend": _trend(temp),
         }
 

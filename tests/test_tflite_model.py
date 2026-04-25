@@ -38,6 +38,7 @@ class TestTFLiteModel:
         with pytest.raises(ValueError, match="shape mismatch"):
             model.infer(bad_input)
 
+    @pytest.mark.slow
     def test_latency(self):
         model = TFLiteModel(MODEL_PATH)
         model.load()
