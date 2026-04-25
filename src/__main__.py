@@ -143,6 +143,8 @@ def main():
             vital["timestamp"] = int(now * 1000)
             payload_str = json.dumps(vital)
             mqtt_client.publish(Config.MQTT_TOPIC_VITALS, payload_str)
+            # Process directly: in scenario mode the MQTT loopback may not deliver
+            # the message back to on_vital_message before the next iteration.
             on_vital_message(payload_str)
             last_publish = now
 

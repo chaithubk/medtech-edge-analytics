@@ -13,6 +13,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Small epsilon to avoid division by zero during feature normalization
+_EPSILON = 1e-7
+
 # Pre-computed normalization statistics (from training data)
 # Shape: (20,) - one entry per feature in the order returned by VitalBuffer.get_all_features()
 _NORM_MEANS = np.array(
@@ -116,7 +119,7 @@ class SepsisScorer:
         Returns:
             Normalized np.ndarray of shape (1, 20).
         """
-        return (features - _NORM_MEANS) / (_NORM_STDS + 1e-7)
+        return (features - _NORM_MEANS) / (_NORM_STDS + _EPSILON)
 
     @staticmethod
     def _default_result() -> dict:

@@ -42,10 +42,15 @@ class TestTFLiteModel:
         model = TFLiteModel(MODEL_PATH)
         model.load()
         features = np.zeros((1, 20), dtype=np.float32)
+        # Warm-up call to avoid cold-start overhead
+        model.infer(features)
         start = time.time()
         model.infer(features)
         elapsed_ms = (time.time() - start) * 1000
-        assert elapsed_ms < 100.0, f"Inference took {elapsed_ms:.1f}ms (>100ms)"
+        assert elapsed_ms < 100.0, (
+            f"Inference took {elapsed_ms:.1f}ms (spec requirement: <100ms). "
+            "This may indicate a slow CI environment or a regression."
+        )
 
     def test_input_output_shapes(self):
         model = TFLiteModel(MODEL_PATH)

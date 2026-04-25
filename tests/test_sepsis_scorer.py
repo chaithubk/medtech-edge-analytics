@@ -101,10 +101,15 @@ class TestSepsisScorer:
         buf = VitalBuffer()
         _fill_buffer(buf, _make_vital(80, 120, 80, 97, 37.0))
         scorer = SepsisScorer(_mock_model(0.2))
+        # Warm-up call to avoid cold-start overhead
+        scorer.score(buf)
         start = time.time()
         scorer.score(buf)
         elapsed_ms = (time.time() - start) * 1000
-        assert elapsed_ms < 100.0
+        assert elapsed_ms < 100.0, (
+            f"Scoring took {elapsed_ms:.1f}ms (spec requirement: <100ms). "
+            "This may indicate a slow CI environment or a regression."
+        )
 
     def test_score_empty_buffer(self):
         buf = VitalBuffer()
