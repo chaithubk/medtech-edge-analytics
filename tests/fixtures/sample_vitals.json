@@ -1,0 +1,32 @@
+[
+  {
+    "timestamp": 1712973600000,
+    "hr": 88.0,
+    "bp_sys": 120.0,
+    "bp_dia": 80.0,
+    "o2_sat": 97.0,
+    "temperature": 37.0,
+    "quality": 95,
+    "source": "simulator"
+  },
+  {
+    "timestamp": 1712973610000,
+    "hr": 90.0,
+    "bp_sys": 122.0,
+    "bp_dia": 82.0,
+    "o2_sat": 96.5,
+    "temperature": 37.1,
+    "quality": 95,
+    "source": "simulator"
+  },
+  {
+    "timestamp": 1712973620000,
+    "hr": 125.0,
+    "bp_sys": 95.0,
+    "bp_dia": 55.0,
+    "o2_sat": 88.0,
+    "temperature": 39.5,
+    "quality": 85,
+    "source": "simulator"
+  }
+]

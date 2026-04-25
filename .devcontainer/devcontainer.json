@@ -1,0 +1,46 @@
+{
+  "name": "Edge Analytics (Python 3.10 + TensorFlow Lite)",
+  "image": "python:3.10-bookworm",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "ms-python.flake8",
+        "ms-python.debugpy",
+        "eamodio.gitlens",
+        "github.copilot",
+        "github.copilot-chat"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.formatting.provider": "black",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"],
+        "[python]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "ms-python.black-formatter",
+          "editor.rulers": [80, 100]
+        }
+      }
+    }
+  },
+  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements-dev.txt",
+  "forwardPorts": [1883],
+  "portsAttributes": {
+    "1883": {
+      "label": "MQTT Broker",
+      "onAutoForward": "notify"
+    }
+  },
+  "remoteUser": "root",
+  "remoteEnv": {
+    "PYTHONUNBUFFERED": "1",
+    "MQTT_BROKER": "localhost",
+    "MQTT_PORT": "1883",
+    "LOGLEVEL": "INFO"
+  }
+}
