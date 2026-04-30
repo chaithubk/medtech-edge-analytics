@@ -36,9 +36,7 @@ class VitalBuffer:
             try:
                 float(vital[field])
             except (TypeError, ValueError):
-                logger.warning(
-                    "Invalid numeric value for '%s': %s, skipping", field, vital[field]
-                )
+                logger.warning("Invalid numeric value for '%s': %s, skipping", field, vital[field])
                 return
         self._buffer.append(vital)
 
@@ -134,10 +132,26 @@ class VitalBuffer:
 
         features = np.array(
             [
-                stats["hr_mean"], stats["hr_std"], stats["hr_min"], stats["hr_max"], stats["hr_trend"],
-                stats["bp_sys_mean"], stats["bp_sys_std"], stats["bp_sys_min"], stats["bp_sys_max"], stats["bp_sys_trend"],
-                stats["bp_dia_mean"], stats["bp_dia_std"], stats["bp_dia_min"], stats["bp_dia_max"], stats["bp_dia_trend"],
-                stats["o2_mean"], stats["o2_std"], stats["o2_min"], stats["o2_max"], stats["o2_trend"],
+                stats["hr_mean"],
+                stats["hr_std"],
+                stats["hr_min"],
+                stats["hr_max"],
+                stats["hr_trend"],
+                stats["bp_sys_mean"],
+                stats["bp_sys_std"],
+                stats["bp_sys_min"],
+                stats["bp_sys_max"],
+                stats["bp_sys_trend"],
+                stats["bp_dia_mean"],
+                stats["bp_dia_std"],
+                stats["bp_dia_min"],
+                stats["bp_dia_max"],
+                stats["bp_dia_trend"],
+                stats["o2_mean"],
+                stats["o2_std"],
+                stats["o2_min"],
+                stats["o2_max"],
+                stats["o2_trend"],
             ],
             dtype=np.float32,
         ).reshape(1, 20)

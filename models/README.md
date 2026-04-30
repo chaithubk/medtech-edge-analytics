@@ -8,6 +8,16 @@
 **Size**: <5MB  
 **Latency**: <100ms (ARM CPU)  
 
+## Deployment Artifacts
+
+- `sepsis_model.tflite`: Current default model used in development.
+- `sepsis_model_qemu.tflite`: QEMU image artifact path for deployment packaging.
+
+Important: In this Stage 1 repository, the model is a provided placeholder artifact.
+If QEMU/Yocto runtime requires stricter compatibility (older TFLite runtime or
+different operator support), regenerate `sepsis_model_qemu.tflite` from the
+original SavedModel/Keras source using `tools/convert_model_for_qemu.py`.
+
 ## Input
 
 - **Shape**: (1, 20)

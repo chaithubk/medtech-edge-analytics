@@ -52,6 +52,18 @@ pytest tests/ -v --cov=src
 python -m src --scenario healthy
 ```
 
+### Run With QEMU Model Artifact
+
+```
+MODEL_PATH=models/sepsis_model_qemu.tflite python -m src --scenario healthy
+```
+
+To regenerate the QEMU artifact from an original SavedModel/Keras model, use:
+
+```
+python tools/convert_model_for_qemu.py --input /path/to/source_model --output models/sepsis_model_qemu.tflite --mode float
+```
+
 ## Stage 1 Goals
 - ✅ TensorFlow Lite model loading & inference
 - ✅ Vital history buffer management
