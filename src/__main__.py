@@ -54,9 +54,7 @@ def _signal_handler(sig, frame):
 
 def main():
     """Main entry point for edge analytics."""
-    parser = argparse.ArgumentParser(
-        description="MedTech Edge Analytics - Sepsis Detection"
-    )
+    parser = argparse.ArgumentParser(description="MedTech Edge Analytics - Sepsis Detection")
     parser.add_argument(
         "--scenario",
         choices=["healthy", "sepsis", "critical"],
@@ -108,7 +106,9 @@ def main():
     def on_vital_message(payload_str: str) -> None:
         """Handle incoming vital sign message."""
         try:
+            logger.debug("Received vital payload: %s", payload_str)
             vital = mqtt_payload.parse_vital(payload_str)
+            logger.debug("Parsed vital data: %s", vital)
             buffer.add_vital(vital)
             result = scorer.score(buffer)
             prediction_json = mqtt_payload.serialize_prediction(result)
@@ -128,6 +128,8 @@ def main():
 
     if not mqtt_client.connect():
         logger.warning("MQTT connection failed - will retry in background")
+
+    logger.info("Ready to receive vital sign messages on MQTT topic: %s", Config.MQTT_TOPIC_VITALS)
 
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
