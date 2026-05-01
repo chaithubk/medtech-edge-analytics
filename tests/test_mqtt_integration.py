@@ -10,17 +10,20 @@ from src.mqtt import mqtt_payload
 
 # ── mqtt_payload tests ──────────────────────────────────────────────────────
 
+
 class TestMqttPayload:
-    VALID_VITAL = json.dumps({
-        "timestamp": 1712973600000,
-        "hr": 80.0,
-        "bp_sys": 120.0,
-        "bp_dia": 80.0,
-        "o2_sat": 97.0,
-        "temperature": 37.0,
-        "quality": 95,
-        "source": "simulator",
-    })
+    VALID_VITAL = json.dumps(
+        {
+            "timestamp": 1712973600000,
+            "hr": 80.0,
+            "bp_sys": 120.0,
+            "bp_dia": 80.0,
+            "o2_sat": 97.0,
+            "temperature": 37.0,
+            "quality": 95,
+            "source": "simulator",
+        }
+    )
 
     def test_parse_vital_valid(self):
         vital = mqtt_payload.parse_vital(self.VALID_VITAL)
@@ -69,6 +72,7 @@ class TestMqttPayload:
 
 
 # ── MQTTClient tests ─────────────────────────────────────────────────────────
+
 
 class TestMQTTClient:
     def test_is_connected_before_connect(self):

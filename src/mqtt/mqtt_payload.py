@@ -8,9 +8,7 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Required fields for vital signs
-_VITAL_REQUIRED_FIELDS = [
-    "timestamp", "hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "quality"
-]
+_VITAL_REQUIRED_FIELDS = ["timestamp", "hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "quality"]
 
 # Valid numeric ranges for vital signs
 _VITAL_RANGES: Dict[str, tuple] = {
@@ -22,7 +20,12 @@ _VITAL_RANGES: Dict[str, tuple] = {
 }
 
 _PREDICTION_REQUIRED_FIELDS = [
-    "risk_score", "risk_level", "confidence", "timestamp_ms", "features_used", "model_latency_ms"
+    "risk_score",
+    "risk_level",
+    "confidence",
+    "timestamp_ms",
+    "features_used",
+    "model_latency_ms",
 ]
 
 
@@ -56,12 +59,8 @@ def parse_vital(payload_str: str) -> dict:
             logger.warning("Non-numeric value for vital field '%s': %s", field, data[field])
             raise ValueError(f"Non-numeric value for '{field}': {data[field]}") from exc
         if not (lo <= value <= hi):
-            logger.warning(
-                "Vital field '%s' out of range [%s, %s]: %s", field, lo, hi, value
-            )
-            raise ValueError(
-                f"Value for '{field}' out of range [{lo}, {hi}]: {value}"
-            )
+            logger.warning("Vital field '%s' out of range [%s, %s]: %s", field, lo, hi, value)
+            raise ValueError(f"Value for '{field}' out of range [{lo}, {hi}]: {value}")
 
     return data
 

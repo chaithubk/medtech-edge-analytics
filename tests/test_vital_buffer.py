@@ -55,7 +55,11 @@ class TestVitalBuffer:
     def test_get_stats_full(self):
         buf = VitalBuffer(size=360)
         for i in range(360):
-            buf.add_vital(_make_vital(hr=80.0, bp_sys=120.0, bp_dia=80.0, o2_sat=97.0, temperature=37.0, ts_offset=i))
+            buf.add_vital(
+                _make_vital(
+                    hr=80.0, bp_sys=120.0, bp_dia=80.0, o2_sat=97.0, temperature=37.0, ts_offset=i
+                )
+            )
         stats = buf.get_stats()
         assert abs(stats["hr_mean"] - 80.0) < 0.001
         assert "hr_std" in stats
