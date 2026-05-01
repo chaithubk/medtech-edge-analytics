@@ -12,7 +12,7 @@ from src.inference.vital_buffer import VitalBuffer
 from src.mqtt import mqtt_payload
 from src.mqtt.mqtt_client import MQTTClient
 from src.utils.config import Config
-from src.utils.logger import get_logger, setup_logger
+from src.utils.logger import setup_logger
 
 # Scenario vital presets
 _SCENARIOS = {
@@ -94,7 +94,8 @@ def main():
     model = TFLiteModel(args.model_path)
     if not model.load():
         logger.warning(
-            "Failed to load model from %s - running in degraded mode (predictions will be neutral 50%%)",
+            "Failed to load model from %s - running in degraded mode "
+            "(predictions will be neutral 50%%)",
             args.model_path,
         )
 

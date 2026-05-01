@@ -1,26 +1,29 @@
 """Tests for MQTT client and payload handling."""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
 
-from src.mqtt.mqtt_client import MQTTClient
-from src.mqtt import mqtt_payload
+import pytest
 
+from src.mqtt import mqtt_payload
+from src.mqtt.mqtt_client import MQTTClient
 
 # ── mqtt_payload tests ──────────────────────────────────────────────────────
 
+
 class TestMqttPayload:
-    VALID_VITAL = json.dumps({
-        "timestamp": 1712973600000,
-        "hr": 80.0,
-        "bp_sys": 120.0,
-        "bp_dia": 80.0,
-        "o2_sat": 97.0,
-        "temperature": 37.0,
-        "quality": 95,
-        "source": "simulator",
-    })
+    VALID_VITAL = json.dumps(
+        {
+            "timestamp": 1712973600000,
+            "hr": 80.0,
+            "bp_sys": 120.0,
+            "bp_dia": 80.0,
+            "o2_sat": 97.0,
+            "temperature": 37.0,
+            "quality": 95,
+            "source": "simulator",
+        }
+    )
 
     def test_parse_vital_valid(self):
         vital = mqtt_payload.parse_vital(self.VALID_VITAL)
@@ -70,6 +73,7 @@ class TestMqttPayload:
 
 # ── MQTTClient tests ─────────────────────────────────────────────────────────
 
+
 class TestMQTTClient:
     def test_is_connected_before_connect(self):
         client = MQTTClient("localhost", 1883)
@@ -109,6 +113,7 @@ class TestMQTTClient:
         """on_message callback should dispatch to registered handler."""
         client = MQTTClient("localhost", 1883)
         received = []
+
         client._subscriptions["vitals/test"] = lambda payload: received.append(payload)
 
         mock_msg = MagicMock()
@@ -135,7 +140,10 @@ class TestMQTTClient:
         """Same callback registered to two matching wildcards should only be called once."""
         client = MQTTClient("localhost", 1883)
         received = []
-        callback = lambda payload: received.append(payload)
+
+        def callback(payload):
+            received.append(payload)
+
         client._subscriptions["vitals/#"] = callback
         client._subscriptions["vitals/+"] = callback  # same callback object
 

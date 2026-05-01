@@ -31,4 +31,7 @@ ENV MQTT_PORT=1883
 ENV LOGLEVEL=INFO
 
 # Run the application
+HEALTHCHECK --interval=5s --timeout=5s --start-period=15s --retries=3 \
+    CMD python -c "import os; os.kill(1, 0)" || exit 1
+
 CMD ["python", "-m", "src"]

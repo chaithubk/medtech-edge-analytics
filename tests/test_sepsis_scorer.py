@@ -1,9 +1,9 @@
 """Tests for sepsis risk scorer."""
 
 import time
-import numpy as np
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from src.inference.sepsis_scorer import SepsisScorer, _classify_risk
 from src.inference.vital_buffer import VitalBuffer

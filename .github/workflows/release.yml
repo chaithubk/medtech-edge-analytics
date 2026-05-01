@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   release:
@@ -275,3 +276,24 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.release.outputs.new_version }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Smoke-test the published GHCR image end-to-end.
+  # ─────────────────────────────────────────────────────────────────────────────
+  smoke-test-image:
+    name: Smoke Test published image
+    runs-on: ubuntu-latest
+    needs: [publish-image, release]
+    if: ${{ !inputs.prerelease }}   # skip for pre-releases (image was not pushed)
+
+    steps:
+      - name: Checkout at release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.new_version }}
+
+      - name: Run smoke test against GHCR image
+        uses: ./.github/actions/smoke-test
+        with:
+          image: ghcr.io/${{ github.repository_owner }}/medtech-edge-analytics:${{ needs.release.outputs.new_version }}
+          registry-token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,7 +1,7 @@
 """TensorFlow Lite model inference wrapper."""
 
 import time
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -13,6 +13,8 @@ logger = get_logger(__name__)
 class TFLiteModel:
     """TensorFlow Lite model inference wrapper."""
 
+    from typing import Any, Dict, List
+
     def __init__(self, model_path: str) -> None:
         """Initialize with path to .tflite model file.
 
@@ -20,9 +22,9 @@ class TFLiteModel:
             model_path: File path to the .tflite model.
         """
         self._model_path = model_path
-        self._interpreter: Optional[object] = None
-        self._input_details: Optional[list] = None
-        self._output_details: Optional[list] = None
+        self._interpreter: Optional[Any] = None
+        self._input_details: Optional[List[Dict[str, Any]]] = None
+        self._output_details: Optional[List[Dict[str, Any]]] = None
 
     def load(self) -> bool:
         """Load TFLite model from file and allocate tensors.
@@ -65,6 +67,11 @@ class TFLiteModel:
         if not self.is_loaded():
             logger.error("Model not loaded, returning neutral prediction")
             return 0.5
+
+        # Type-safe asserts for mypy
+        assert self._interpreter is not None, "Interpreter is not loaded"
+        assert self._input_details is not None, "Input details not loaded"
+        assert self._output_details is not None, "Output details not loaded"
 
         expected_shape = tuple(self._input_details[0]["shape"])
         if features.shape != expected_shape:

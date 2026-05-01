@@ -1,0 +1,104 @@
+name: Smoke Test
+description: >
+  Start medtech-vitals-publisher (which bundles a Mosquitto broker) and
+  medtech-edge-analytics on a shared network, then verify that a prediction
+  arrives on the MQTT predictions topic.
+
+inputs:
+  image:
+    description: Full image reference to test (e.g. medtech-edge-analytics:ci)
+    required: true
+  registry-token:
+    description: >
+      GHCR personal-access / GITHUB_TOKEN used to pull images from GHCR.
+      Leave empty (default) when the analytics image is already loaded locally.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Login to GHCR
+      if: ${{ inputs.registry-token != '' }}
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.registry-token }}
+
+    - name: Create isolated Docker network
+      shell: bash
+      run: docker network create smoke-net
+
+    - name: Start vitals publisher (bundles Mosquitto broker)
+      shell: bash
+      run: |
+        docker run -d \
+          --name medtech-vitals-publisher \
+          --network smoke-net \
+          -e SCENARIO=healthy \
+          -e LOGLEVEL=INFO \
+          ghcr.io/chaithubk/medtech-vitals-publisher:latest
+
+    - name: Wait for publisher's MQTT broker to be ready
+      shell: bash
+      run: |
+        echo "Waiting for Mosquitto inside medtech-vitals-publisher (timeout 30s)..."
+        timeout 30 bash -c \
+          'until docker exec medtech-vitals-publisher \
+              mosquitto_pub -h localhost -p 1883 -t smoke/ping -m ping 2>/dev/null; do
+             echo "  broker not ready yet, retrying..."
+             sleep 2
+           done'
+        echo "Broker is ready."
+
+    - name: Start analytics container
+      shell: bash
+      run: |
+        docker run -d \
+          --name medtech-edge \
+          --network smoke-net \
+          -e MQTT_BROKER=medtech-vitals-publisher \
+          -e MQTT_PORT=1883 \
+          -e MODEL_PATH=models/sepsis_model.tflite \
+          -e LOGLEVEL=INFO \
+          ${{ inputs.image }}
+
+    - name: Wait for analytics container to be healthy
+      shell: bash
+      run: |
+        echo "Waiting for medtech-edge to become healthy (timeout 40s)..."
+        timeout 40 bash -c \
+          'until [ "$(docker inspect --format={{.State.Health.Status}} medtech-edge 2>/dev/null)" = "healthy" ]; do
+             echo "  status: $(docker inspect --format={{.State.Health.Status}} medtech-edge 2>/dev/null || echo unknown)"
+             sleep 2
+           done'
+        echo "Container is healthy."
+
+    - name: Verify a prediction arrives on the MQTT predictions topic
+      shell: bash
+      run: |
+        echo "Subscribing to medtech/predictions/sepsis — waiting up to 60 s for one message..."
+        timeout 60 docker exec medtech-edge \
+          mosquitto_sub \
+            -h medtech-vitals-publisher \
+            -p 1883 \
+            -t medtech/predictions/sepsis \
+            -C 1
+        echo "Functional verification passed — prediction received on medtech/predictions/sepsis."
+
+    - name: Dump container logs on failure
+      if: ${{ failure() }}
+      shell: bash
+      run: |
+        echo "=== medtech-vitals-publisher logs ==="
+        docker logs medtech-vitals-publisher 2>&1 || true
+        echo "=== medtech-edge logs ==="
+        docker logs medtech-edge 2>&1 || true
+
+    - name: Tear down
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        docker rm -f medtech-edge medtech-vitals-publisher || true
+        docker network rm smoke-net || true

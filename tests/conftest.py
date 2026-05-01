@@ -1,9 +1,9 @@
 """Pytest configuration and shared fixtures."""
 
-import json
-import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock
+
 import numpy as np
+import pytest
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def sample_vital():
         "o2_sat": 98.0,
         "temperature": 37.2,
         "quality": 95,
-        "source": "simulator"
+        "source": "simulator",
     }
 
 
@@ -27,12 +27,12 @@ def sample_vital_unhealthy():
     return {
         "timestamp": 1712973600000,
         "hr": 125.0,  # Elevated
-        "bp_sys": 95.0,   # Low
-        "bp_dia": 55.0,   # Low
-        "o2_sat": 88.0,   # Low
+        "bp_sys": 95.0,  # Low
+        "bp_dia": 55.0,  # Low
+        "o2_sat": 88.0,  # Low
         "temperature": 39.5,  # Elevated
         "quality": 85,
-        "source": "simulator"
+        "source": "simulator",
     }
 
 
@@ -42,16 +42,18 @@ def vital_sequence():
     vitals = []
     base_time = 1712973600000
     for i in range(10):
-        vitals.append({
-            "timestamp": base_time + (i * 10000),
-            "hr": 80.0 + np.random.normal(0, 3),
-            "bp_sys": 120.0 + np.random.normal(0, 5),
-            "bp_dia": 80.0 + np.random.normal(0, 4),
-            "o2_sat": 97.0 + np.random.normal(0, 1),
-            "temperature": 37.0 + np.random.normal(0, 0.3),
-            "quality": 95,
-            "source": "simulator"
-        })
+        vitals.append(
+            {
+                "timestamp": base_time + (i * 10000),
+                "hr": 80.0 + np.random.normal(0, 3),
+                "bp_sys": 120.0 + np.random.normal(0, 5),
+                "bp_dia": 80.0 + np.random.normal(0, 4),
+                "o2_sat": 97.0 + np.random.normal(0, 1),
+                "temperature": 37.0 + np.random.normal(0, 0.3),
+                "quality": 95,
+                "source": "simulator",
+            }
+        )
     return vitals
 
 
@@ -60,12 +62,8 @@ def mock_tflite_model():
     """Mock TFLite model."""
     mock_model = MagicMock()
     mock_model.allocate_tensors = MagicMock()
-    mock_model.get_input_details = MagicMock(return_value=[
-        {"index": 0, "shape": (1, 20)}
-    ])
-    mock_model.get_output_details = MagicMock(return_value=[
-        {"index": 0, "shape": (1, 1)}
-    ])
+    mock_model.get_input_details = MagicMock(return_value=[{"index": 0, "shape": (1, 20)}])
+    mock_model.get_output_details = MagicMock(return_value=[{"index": 0, "shape": (1, 1)}])
     mock_model.set_tensor = MagicMock()
     mock_model.invoke = MagicMock()
     mock_model.get_tensor = MagicMock(return_value=np.array([[0.75]]))
