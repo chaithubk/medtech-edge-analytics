@@ -1,12 +1,12 @@
 """Tests for MQTT client and payload handling."""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
 
-from src.mqtt.mqtt_client import MQTTClient
-from src.mqtt import mqtt_payload
+import pytest
 
+from src.mqtt import mqtt_payload
+from src.mqtt.mqtt_client import MQTTClient
 
 # ── mqtt_payload tests ──────────────────────────────────────────────────────
 
@@ -143,6 +143,7 @@ class TestMQTTClient:
 
         def callback(payload):
             received.append(payload)
+
         client._subscriptions["vitals/#"] = callback
         client._subscriptions["vitals/+"] = callback  # same callback object
 
