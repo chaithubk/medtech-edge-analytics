@@ -8,6 +8,8 @@
         "ms-python.vscode-pylance",
         "ms-python.black-formatter",
         "ms-python.flake8",
+        "ms-python.isort",
+        "ms-python.mypy-type-checker",
         "ms-python.debugpy",
         "eamodio.gitlens",
         "github.copilot",
@@ -15,16 +17,20 @@
       ],
       "settings": {
         "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "python.linting.enabled": true,
-        "python.linting.pylintEnabled": true,
-        "python.formatting.provider": "black",
         "python.testing.pytestEnabled": true,
         "python.testing.pytestArgs": ["tests"],
         "[python]": {
           "editor.formatOnSave": true,
           "editor.defaultFormatter": "ms-python.black-formatter",
-          "editor.rulers": [80, 100]
-        }
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          },
+          "editor.rulers": [100]
+        },
+        "black-formatter.args": ["--line-length", "100"],
+        "isort.args": ["--profile", "black", "--line-length", "100"],
+        "flake8.args": ["--max-line-length", "100"],
+        "mypy-type-checker.args": ["--ignore-missing-imports"]
       }
     }
   },
