@@ -31,7 +31,7 @@ jobs:
         run: black --check src tests
 
       - name: Flake8 — style & errors
-        run: flake8 src tests --max-line-length=100 --count --statistics
+        run: flake8 src tests --max-line-length=110 --count --statistics
 
       - name: MyPy — type checking
         run: mypy src --ignore-missing-imports

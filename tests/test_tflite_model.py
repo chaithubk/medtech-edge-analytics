@@ -1,9 +1,8 @@
 """Tests for TFLite model wrapper."""
 
-import time
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
+import time
 
 from src.inference.tflite_model import TFLiteModel
 

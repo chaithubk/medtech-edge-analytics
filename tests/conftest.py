@@ -1,8 +1,7 @@
 """Pytest configuration and shared fixtures."""
 
-import json
 import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock
 import numpy as np
 
 

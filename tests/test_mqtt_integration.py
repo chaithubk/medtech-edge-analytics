@@ -113,6 +113,7 @@ class TestMQTTClient:
         """on_message callback should dispatch to registered handler."""
         client = MQTTClient("localhost", 1883)
         received = []
+
         client._subscriptions["vitals/test"] = lambda payload: received.append(payload)
 
         mock_msg = MagicMock()
@@ -139,7 +140,9 @@ class TestMQTTClient:
         """Same callback registered to two matching wildcards should only be called once."""
         client = MQTTClient("localhost", 1883)
         received = []
-        callback = lambda payload: received.append(payload)
+
+        def callback(payload):
+            received.append(payload)
         client._subscriptions["vitals/#"] = callback
         client._subscriptions["vitals/+"] = callback  # same callback object
 

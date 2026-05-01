@@ -1,7 +1,6 @@
 """Tests for vital history circular buffer."""
 
 import numpy as np
-import pytest
 
 from src.inference.vital_buffer import VitalBuffer
 

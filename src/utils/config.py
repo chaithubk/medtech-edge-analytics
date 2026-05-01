@@ -1,7 +1,6 @@
 """Configuration management."""
 
 import os
-from typing import Optional
 
 
 class Config:

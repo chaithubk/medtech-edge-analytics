@@ -1,7 +1,6 @@
 """Tests for sepsis risk scorer."""
 
 import time
-import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
