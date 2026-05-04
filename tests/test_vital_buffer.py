@@ -134,7 +134,7 @@ class TestVitalBuffer:
         assert abs(float(features[0, 16]) - 20.0) < 0.01  # rr_mean
         # rr_trend (17) near 0 since RR is constant
         assert abs(float(features[0, 17])) < 0.1
-        assert abs(float(features[0, 18]) - 2.0) < 0.01   # lactate_mean
+        assert abs(float(features[0, 18]) - 2.0) < 0.01  # lactate_mean
         # sirs_qsofa composite = sirs_score_mean (2.0) + qsofa_score_mean (1.0) = 3.0
         assert abs(float(features[0, 19]) - 3.0) < 0.01
 

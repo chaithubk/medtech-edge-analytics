@@ -9,9 +9,19 @@ from src.inference.sepsis_scorer import SepsisScorer, _classify_risk
 from src.inference.vital_buffer import VitalBuffer
 
 
-def _make_vital(hr, bp_sys, bp_dia, o2_sat, temperature, idx=0,
-                respiratory_rate=16.0, wbc=7.5, lactate=0.9,
-                sirs_score=0.0, qsofa_score=0.0):
+def _make_vital(
+    hr,
+    bp_sys,
+    bp_dia,
+    o2_sat,
+    temperature,
+    idx=0,
+    respiratory_rate=16.0,
+    wbc=7.5,
+    lactate=0.9,
+    sirs_score=0.0,
+    qsofa_score=0.0,
+):
     return {
         "version": "2.0",
         "patient_id": "patient-test-001",
@@ -70,9 +80,21 @@ class TestSepsisScorer:
 
     def test_score_sepsis(self):
         buf = VitalBuffer()
-        _fill_buffer(buf, _make_vital(125, 95, 55, 88, 39.5,
-                                      respiratory_rate=26.0, wbc=14.5,
-                                      lactate=3.2, sirs_score=3.0, qsofa_score=2.0))
+        _fill_buffer(
+            buf,
+            _make_vital(
+                125,
+                95,
+                55,
+                88,
+                39.5,
+                respiratory_rate=26.0,
+                wbc=14.5,
+                lactate=3.2,
+                sirs_score=3.0,
+                qsofa_score=2.0,
+            ),
+        )
         scorer = SepsisScorer(_mock_model(0.9))
         result = scorer.score(buf)
         assert result["risk_score"] > 70.0

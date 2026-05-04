@@ -47,9 +47,9 @@ _NORM_MEANS = np.array(
         0.0,  # bp_dia
         96.0,  # o2_mean
         16.0,  # rr_mean  (normal ~12-20 bpm)
-        0.0,   # rr_trend
-        1.2,   # lactate_mean  (normal <2 mmol/L)
-        1.5,   # sirs_qsofa_mean  (combined, normal ~0-1)
+        0.0,  # rr_trend
+        1.2,  # lactate_mean  (normal <2 mmol/L)
+        1.5,  # sirs_qsofa_mean  (combined, normal ~0-1)
     ],
     dtype=np.float32,
 )
@@ -70,11 +70,11 @@ _NORM_STDS = np.array(
         10.0,
         10.0,
         1.0,  # bp_dia
-        2.0,   # o2_mean
-        5.0,   # rr_mean
-        1.0,   # rr_trend
-        1.5,   # lactate_mean
-        2.0,   # sirs_qsofa_mean
+        2.0,  # o2_mean
+        5.0,  # rr_mean
+        1.0,  # rr_trend
+        1.5,  # lactate_mean
+        2.0,  # sirs_qsofa_mean
     ],
     dtype=np.float32,
 )

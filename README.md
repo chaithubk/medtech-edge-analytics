@@ -1,168 +1,205 @@
 # MedTech Edge Analytics
 
-**Real-time sepsis detection using TensorFlow Lite on-device inference.**
+Edge inference service for sepsis risk scoring using TensorFlow Lite and MQTT.
 
-## Overview
+## Clinical Disclaimer
 
-This repository implements edge AI for clinical decision support. The system:
-- Consumes vital signs via MQTT (from `medtech-vitals-publisher`) — **v2 payload only**
-- Maintains a rolling 1-hour history buffer (360 points at 10s intervals)
-- Runs TensorFlow Lite sepsis detection model (<100ms latency)
-- Publishes predictions back to MQTT (consumed by `medtech-clinician-ui`)
-- Operates entirely on-device (no cloud dependency, HIPAA-friendly)
+This repository is for development and evaluation workflows. It is not a certified medical device and must not be used as a standalone basis for clinical decisions.
 
-## Telemetry Contract — v2 Payload
+## Current Project State
 
-> **Strict enforcement**: this service only processes messages with `version == "2.0"`.
-> Messages with a missing or mismatched `version` field are **logged as errors and
-> dropped** (the service does not crash).
+- Stable edge inference pipeline with MQTT ingest and MQTT prediction publishing
+- Strict v2 telemetry schema enforcement (`version == "2.0"`)
+- 20-feature model input vector with respiratory and lactate-based clinical signals
+- Local quality gates for formatting, linting, typing, and tests
+- Containerized runtime supported via Docker
 
-### MQTT Topics
-
-| Direction | Topic | Description |
-|-----------|-------|-------------|
-| **Subscribe** | `medtech/vitals/latest` | Incoming v2 vital signs |
-| **Publish** | `medtech/predictions/sepsis` | Sepsis risk predictions |
-
-### v2 Vital Signs Payload Fields
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `version` | string | ✅ | Must be `"2.0"` — enforced, all other values rejected |
-| `patient_id` | string | ✅ | Unique patient identifier (for traceability) |
-| `scenario` | string | — | Scenario name (e.g. `healthy`, `sepsis`) |
-| `scenario_stage` | string | — | Stage within the scenario |
-| `timestamp` | integer | ✅ | Unix epoch milliseconds |
-| `hr` | float | ✅ | Heart rate (bpm) — range [30, 180] |
-| `bp_sys` | float | ✅ | Systolic blood pressure (mmHg) — range [60, 200] |
-| `bp_dia` | float | ✅ | Diastolic blood pressure (mmHg) — range [30, 130] |
-| `o2_sat` | float | ✅ | Oxygen saturation (%) — range [50, 100] |
-| `temperature` | float | ✅ | Body temperature (°C) — range [32, 42] |
-| `respiratory_rate` | float | ✅ | Respiratory rate (breaths/min) — range [5, 60] |
-| `wbc` | float | ✅ | White blood cell count (×10³/µL) — range [0.5, 100] |
-| `lactate` | float | ✅ | Lactate level (mmol/L) — range [0.1, 30] |
-| `sirs_score` | float | ✅ | SIRS criteria score — range [0, 4] |
-| `qsofa_score` | float | ✅ | qSOFA score — range [0, 3] |
-| `sepsis_stage` | string | — | Sepsis stage (e.g. `none`, `sepsis`, `septic_shock`) |
-| `sepsis_onset_ts` | integer\|null | — | Epoch ms of sepsis onset; `null` if not yet determined |
-| `quality` | integer | ✅ | Signal quality percentage |
-| `source` | string | ✅ | Data source identifier |
-
-### Prediction Payload Fields
-
-The prediction published to `medtech/predictions/sepsis` includes the following
-traceability fields in addition to the core risk assessment:
-
-| Field | Description |
-|-------|-------------|
-| `risk_score` | Sepsis risk percentage (0–100) |
-| `risk_level` | `LOW` / `MODERATE` / `HIGH` |
-| `confidence` | Raw model output (0–1) |
-| `timestamp_ms` | Prediction creation time (epoch ms) |
-| `features_used` | Number of features supplied to the model (always 20) |
-| `model_latency_ms` | TFLite inference latency |
-| `patient_id` | Forwarded from the v2 vital payload |
-| `vitals_version` | Schema version from the vital payload (`"2.0"`) |
-| `vitals_timestamp` | Timestamp of the vital reading that triggered this prediction |
-
-## Feature Engineering
-
-The 20-feature input vector for the TFLite model is:
-
-| Index | Feature | Description |
-|-------|---------|-------------|
-| 0–4 | `hr_*` | Heart rate — mean, std, min, max, trend |
-| 5–9 | `bp_sys_*` | Systolic BP — mean, std, min, max, trend |
-| 10–14 | `bp_dia_*` | Diastolic BP — mean, std, min, max, trend |
-| 15 | `o2_mean` | Mean O₂ saturation |
-| 16 | `rr_mean` | Mean respiratory rate (v2 clinical field) |
-| 17 | `rr_trend` | Respiratory rate trend/dynamics (v2 clinical field) |
-| 18 | `lactate_mean` | Mean lactate level (v2 clinical field) |
-| 19 | `sirs_qsofa` | Mean SIRS score + mean qSOFA score composite (v2 clinical field) |
-
-> Temperature is available via `VitalBuffer.get_stats()` for monitoring/alerting
-> but is intentionally excluded from the model input vector.
-
-## Architecture
+## System Architecture
 
 ```mermaid
 flowchart TD
-    A["Vitals Publisher (MQTT v2)"] 
-    B["Edge Analytics (TFLite Inference)"]
-    C["Vital History Buffer<br/>(360 points, 1 hour)"]
-    D["Feature Engineering<br/>(20 features including RR/lactate/SIRS/qSOFA)"]
-    E["Sepsis Model Inference"]
-    F["Risk Scoring"]
-    G["Clinician UI (MQTT Alerts)"]
+        A["Vitals Publisher (MQTT v2)"]
+        B["Edge Analytics Service"]
+        C["Vital Buffer (360 points)"]
+        D["Feature Engineering (20 features)"]
+        E["TFLite Model Inference"]
+        F["Risk Classification"]
+        G["Prediction Consumer (UI / downstream service)"]
 
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    E --> F
-    F --> G
+        A --> B
+        B --> C
+        C --> D
+        D --> E
+        E --> F
+        F --> G
 ```
 
+## Repository Layout
 
-## Quick Start
+- `src/inference/`: model wrapper, feature extraction, sepsis scoring
+- `src/mqtt/`: payload validation/serialization and MQTT client
+- `src/utils/`: configuration and logging helpers
+- `tests/`: unit and integration tests
+- `models/`: TFLite artifacts and model documentation
+- `tools/`: local developer and CI utility scripts
 
-### Setup Dev Container
+## Prerequisites
+
+- Python 3.10+
+- pip
+- Optional: Docker (for containerized execution)
+- Optional: local MQTT broker (for live topic integration)
+
+## Installation
+
 ```bash
-# In VS Code: Cmd+Shift+P → Dev Containers: Reopen in Container
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements-dev.txt
 ```
 
-### Run Tests
+## Running the Service
 
-```
-pytest tests/ -v --cov=src
-```
+### Scenario mode (no broker required)
 
-### Run Inference
-
-```
+```bash
 python -m src --scenario healthy
+python -m src --scenario sepsis
+python -m src --scenario critical
 ```
 
-### Run With QEMU Model Artifact
+### MQTT mode (broker-backed)
 
+```bash
+python -m src --mqtt-broker localhost --mqtt-port 1883
 ```
+
+### Use QEMU-compatible model artifact
+
+```bash
 MODEL_PATH=models/sepsis_model_qemu.tflite python -m src --scenario healthy
 ```
 
-To regenerate the QEMU artifact from an original SavedModel/Keras model, use:
+### Regenerate QEMU artifact
 
+```bash
+python tools/convert_model_for_qemu.py \
+    --input /path/to/source_model \
+    --output models/sepsis_model_qemu.tflite \
+    --mode float
 ```
-python tools/convert_model_for_qemu.py --input /path/to/source_model --output models/sepsis_model_qemu.tflite --mode float
+
+## Configuration
+
+Environment variables are defined in `src/utils/config.py`.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MQTT_BROKER` | `localhost` | MQTT broker hostname/IP |
+| `MQTT_PORT` | `1883` | MQTT broker port |
+| `MQTT_TOPIC_VITALS` | `medtech/vitals/latest` | Input telemetry topic |
+| `MQTT_TOPIC_PREDICTIONS` | `medtech/predictions/sepsis` | Output prediction topic |
+| `MODEL_PATH` | `models/sepsis_model.tflite` | Active TFLite artifact |
+| `BUFFER_SIZE` | `360` | Number of buffered vital samples |
+| `VITAL_INTERVAL_S` | `10` | Synthetic scenario publish interval |
+| `LOGLEVEL` | `INFO` | Logging level |
+
+## Telemetry Contract (v2)
+
+Only payloads with `version == "2.0"` are accepted. Any missing/mismatched version is logged and dropped safely.
+
+### MQTT topics
+
+| Direction | Topic |
+|---|---|
+| Subscribe | `medtech/vitals/latest` |
+| Publish | `medtech/predictions/sepsis` |
+
+### Required input fields
+
+`version`, `patient_id`, `timestamp`, `hr`, `bp_sys`, `bp_dia`, `o2_sat`, `temperature`, `respiratory_rate`, `wbc`, `lactate`, `sirs_score`, `qsofa_score`, `quality`, `source`
+
+### Input validation ranges
+
+- `hr`: 30 to 180
+- `bp_sys`: 60 to 200
+- `bp_dia`: 30 to 130
+- `o2_sat`: 50 to 100
+- `temperature`: 32 to 42
+- `respiratory_rate`: 5 to 60
+- `wbc`: 0.5 to 100
+- `lactate`: 0.1 to 30
+- `sirs_score`: 0 to 4
+- `qsofa_score`: 0 to 3
+
+### Prediction payload fields
+
+- `risk_score` (0 to 100)
+- `risk_level` (`LOW`, `MODERATE`, `HIGH`)
+- `confidence` (0 to 1)
+- `timestamp_ms`
+- `features_used` (always `20`)
+- `model_latency_ms`
+- `patient_id`
+- `vitals_version`
+- `vitals_timestamp`
+
+## Feature Engineering
+
+The model input is a `(1, 20)` float32 vector:
+
+- 0 to 4: heart rate mean/std/min/max/trend
+- 5 to 9: systolic BP mean/std/min/max/trend
+- 10 to 14: diastolic BP mean/std/min/max/trend
+- 15: oxygen saturation mean
+- 16: respiratory rate mean
+- 17: respiratory rate trend
+- 18: lactate mean
+- 19: SIRS mean + qSOFA mean composite
+
+Temperature and extended oxygen statistics are retained for monitoring statistics but excluded from the 20-feature model vector.
+
+## Quality and CI Workflow
+
+Run all quality gates locally:
+
+```bash
+tools/check_ci.sh
 ```
 
-## Stage 1 Goals
-- ✅ TensorFlow Lite model loading & inference
-- ✅ Vital history buffer management
-- ✅ Sepsis risk scoring
-- ✅ MQTT integration
-- ✅ Unit tests (>80% coverage)
-- ✅ Logging & configuration
+Behavior of `tools/check_ci.sh`:
 
-## Stage 2 (v2 Payload)
-- ✅ v2 MQTT payload schema enforcement (`version == "2.0"`)
-- ✅ New clinical fields: respiratory rate, WBC, lactate, SIRS, qSOFA
-- ✅ Feature engineering updated with RR dynamics + lactate + SIRS/qSOFA
-- ✅ Prediction payload enriched with patient_id / vitals_version traceability
+- Default mode applies safe auto-fixes (Black + isort) before checks
+- Runs Black, isort, Flake8, MyPy, and Pytest gates
+- Returns non-zero exit code if any gate still fails
 
-## Stage 3+ Roadmap
+Optional modes:
 
-- Explainability (SHAP)
-- Real patient data validation
-- Model retraining pipeline
-- Ensemble models
-- Advanced feature engineering
+```bash
+tools/check_ci.sh --check-only
+tools/check_ci.sh --fix
+```
 
-## Dependencies
+## Test Commands
 
-- Python 3.11
-- TensorFlow Lite Runtime
-- NumPy
-- Paho MQTT
-- Pytest (testing)
-- Black (formatting)
+```bash
+pytest tests/ -v --cov=src
+```
+
+## Docker
+
+```bash
+docker build -t medtech-edge-analytics .
+docker run --rm medtech-edge-analytics
+```
+
+## Model Documentation
+
+Detailed model-card and artifact guidance is available in `models/README.md`.
+
+## Planned Enhancements
+
+- Explainability outputs for clinician review
+- Validation with real-world cohorts and external datasets
+- Retraining and model version governance pipeline
+- Ensemble and temporal modeling exploration

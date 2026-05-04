@@ -41,14 +41,14 @@ def sample_vital_unhealthy():
         "scenario": "sepsis",
         "scenario_stage": "onset",
         "timestamp": 1712973600000,
-        "hr": 125.0,       # Elevated
-        "bp_sys": 95.0,    # Low
-        "bp_dia": 55.0,    # Low
-        "o2_sat": 88.0,    # Low
+        "hr": 125.0,  # Elevated
+        "bp_sys": 95.0,  # Low
+        "bp_dia": 55.0,  # Low
+        "o2_sat": 88.0,  # Low
         "temperature": 39.5,  # Elevated
         "respiratory_rate": 26.0,  # Elevated
-        "wbc": 14.5,       # Elevated
-        "lactate": 3.2,    # Elevated
+        "wbc": 14.5,  # Elevated
+        "lactate": 3.2,  # Elevated
         "sirs_score": 3.0,
         "qsofa_score": 2.0,
         "sepsis_stage": "sepsis",
