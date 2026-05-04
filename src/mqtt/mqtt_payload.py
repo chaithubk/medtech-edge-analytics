@@ -1,4 +1,9 @@
-"""MQTT payload parsing and serialization for vital signs and predictions."""
+"""MQTT payload parsing and serialization for vital signs and predictions.
+
+Telemetry Contract: v2.0
+This module enforces the v2 MQTT payload schema published by medtech-vitals-publisher.
+Messages with version != "2.0" are rejected (logged and dropped) without crashing.
+"""
 
 import json
 from typing import Any, Dict
@@ -7,16 +12,40 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Required fields for vital signs
-_VITAL_REQUIRED_FIELDS = ["timestamp", "hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "quality"]
+# Enforced schema version — messages with any other value are dropped.
+VITALS_SCHEMA_VERSION = "2.0"
 
-# Valid numeric ranges for vital signs
+# Required fields for v2 vital signs (non-nullable)
+_VITAL_REQUIRED_FIELDS = [
+    "version",
+    "patient_id",
+    "timestamp",
+    "hr",
+    "bp_sys",
+    "bp_dia",
+    "o2_sat",
+    "temperature",
+    "respiratory_rate",
+    "wbc",
+    "lactate",
+    "sirs_score",
+    "qsofa_score",
+    "quality",
+    "source",
+]
+
+# Valid numeric ranges for vital signs (field: (min, max))
 _VITAL_RANGES: Dict[str, tuple] = {
     "hr": (30.0, 180.0),
     "bp_sys": (60.0, 200.0),
     "bp_dia": (30.0, 130.0),
     "o2_sat": (50.0, 100.0),
     "temperature": (32.0, 42.0),
+    "respiratory_rate": (5.0, 60.0),
+    "wbc": (0.5, 100.0),
+    "lactate": (0.1, 30.0),
+    "sirs_score": (0.0, 4.0),
+    "qsofa_score": (0.0, 3.0),
 }
 
 _PREDICTION_REQUIRED_FIELDS = [
@@ -30,16 +59,21 @@ _PREDICTION_REQUIRED_FIELDS = [
 
 
 def parse_vital(payload_str: str) -> dict:
-    """Parse a JSON vital signs payload string.
+    """Parse and validate a v2 JSON vital signs payload string.
+
+    Enforces strict contract: ``version`` must equal ``"2.0"``.  Messages with a
+    missing or mismatched version are logged as errors and a ``ValueError`` is
+    raised so the caller can drop the message without crashing.
 
     Args:
-        payload_str: JSON-encoded string with vital sign data.
+        payload_str: JSON-encoded string with v2 vital sign data.
 
     Returns:
-        Validated vital signs dict.
+        Validated vital signs dict.  ``sepsis_onset_ts`` may be ``None``.
 
     Raises:
-        ValueError: If JSON is invalid, fields are missing, or values are out of range.
+        ValueError: If JSON is invalid, version is wrong, fields are missing,
+            or numeric values are out of the expected clinical range.
     """
     try:
         data: Dict[str, Any] = json.loads(payload_str)
@@ -47,11 +81,27 @@ def parse_vital(payload_str: str) -> dict:
         logger.warning("Failed to parse vital payload: %s", exc)
         raise ValueError(f"Invalid JSON payload: {exc}") from exc
 
+    # --- Version contract enforcement ---
+    received_version = data.get("version")
+    if received_version != VITALS_SCHEMA_VERSION:
+        logger.error(
+            "Vitals schema version mismatch: expected '%s', received '%s'. "
+            "Dropping message. Update the publisher to emit v2 payloads.",
+            VITALS_SCHEMA_VERSION,
+            received_version,
+        )
+        raise ValueError(
+            f"Schema version mismatch: expected '{VITALS_SCHEMA_VERSION}', "
+            f"got '{received_version}'"
+        )
+
+    # --- Required field presence ---
     for field in _VITAL_REQUIRED_FIELDS:
         if field not in data:
             logger.warning("Missing required vital field: '%s'", field)
             raise ValueError(f"Missing required field: '{field}'")
 
+    # --- Numeric range validation ---
     for field, (lo, hi) in _VITAL_RANGES.items():
         try:
             value = float(data[field])
@@ -62,6 +112,7 @@ def parse_vital(payload_str: str) -> dict:
             logger.warning("Vital field '%s' out of range [%s, %s]: %s", field, lo, hi, value)
             raise ValueError(f"Value for '{field}' out of range [{lo}, {hi}]: {value}")
 
+    # sepsis_onset_ts is allowed to be null/absent (onset not yet determined)
     return data
 
 

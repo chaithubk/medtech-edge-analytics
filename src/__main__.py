@@ -14,32 +14,65 @@ from src.mqtt.mqtt_client import MQTTClient
 from src.utils.config import Config
 from src.utils.logger import setup_logger
 
-# Scenario vital presets
+# Scenario vital presets (v2 payload format)
 _SCENARIOS = {
     "healthy": {
+        "version": "2.0",
+        "patient_id": "demo-healthy-001",
+        "scenario": "healthy",
+        "scenario_stage": "stable",
         "hr": 80.0,
         "bp_sys": 120.0,
         "bp_dia": 80.0,
         "o2_sat": 97.0,
         "temperature": 37.0,
+        "respiratory_rate": 16.0,
+        "wbc": 7.5,
+        "lactate": 0.8,
+        "sirs_score": 0.0,
+        "qsofa_score": 0.0,
+        "sepsis_stage": "none",
+        "sepsis_onset_ts": None,
         "quality": 95,
         "source": "simulator",
     },
     "sepsis": {
+        "version": "2.0",
+        "patient_id": "demo-sepsis-001",
+        "scenario": "sepsis",
+        "scenario_stage": "onset",
         "hr": 125.0,
         "bp_sys": 95.0,
         "bp_dia": 55.0,
         "o2_sat": 88.0,
         "temperature": 39.5,
+        "respiratory_rate": 26.0,
+        "wbc": 14.5,
+        "lactate": 3.2,
+        "sirs_score": 3.0,
+        "qsofa_score": 2.0,
+        "sepsis_stage": "sepsis",
+        "sepsis_onset_ts": None,
         "quality": 85,
         "source": "simulator",
     },
     "critical": {
+        "version": "2.0",
+        "patient_id": "demo-critical-001",
+        "scenario": "critical",
+        "scenario_stage": "severe",
         "hr": 140.0,
         "bp_sys": 80.0,
         "bp_dia": 40.0,
         "o2_sat": 75.0,
         "temperature": 40.5,
+        "respiratory_rate": 34.0,
+        "wbc": 18.0,
+        "lactate": 5.5,
+        "sirs_score": 4.0,
+        "qsofa_score": 3.0,
+        "sepsis_stage": "septic_shock",
+        "sepsis_onset_ts": None,
         "quality": 70,
         "source": "simulator",
     },
@@ -112,6 +145,10 @@ def main():
             logger.debug("Parsed vital data: %s", vital)
             buffer.add_vital(vital)
             result = scorer.score(buffer)
+            # Enrich prediction with traceability fields from the v2 payload
+            result["patient_id"] = vital.get("patient_id", "unknown")
+            result["vitals_version"] = vital.get("version", "2.0")
+            result["vitals_timestamp"] = vital.get("timestamp")
             prediction_json = mqtt_payload.serialize_prediction(result)
             mqtt_client.publish(Config.MQTT_TOPIC_PREDICTIONS, prediction_json)
             logger.info(
