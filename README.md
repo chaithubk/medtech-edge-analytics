@@ -106,7 +106,9 @@ Environment variables are defined in `src/utils/config.py`.
 
 ## Telemetry Contract (v2)
 
-Only payloads with `version == "2.0"` are accepted. Any missing/mismatched version is logged and dropped safely.
+The service validates v2 payloads and accepts schema version via `version` or compatibility aliases (`schema_version`, `payload_version`, `contract_version`).
+If version is omitted but all required v2 fields are present, the message is treated as v2 and normalized to `"2.0"`.
+Mismatched versions are logged and dropped safely.
 
 ### MQTT topics
 

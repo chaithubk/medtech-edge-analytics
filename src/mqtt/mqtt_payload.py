@@ -1,8 +1,9 @@
 """MQTT payload parsing and serialization for vital signs and predictions.
 
 Telemetry Contract: v2.0
-This module enforces the v2 MQTT payload schema published by medtech-vitals-publisher.
-Messages with version != "2.0" are rejected (logged and dropped) without crashing.
+This module validates the v2 MQTT payload schema published by medtech-vitals-publisher.
+For compatibility with publisher variants, schema version may be supplied under
+supported alias keys or inferred from a complete v2 field set.
 """
 
 import json
@@ -14,6 +15,9 @@ logger = get_logger(__name__)
 
 # Enforced schema version — messages with any other value are dropped.
 VITALS_SCHEMA_VERSION = "2.0"
+
+# Accepted keys that may carry schema version in different publisher builds.
+_VERSION_KEYS = ("version", "schema_version", "payload_version", "contract_version")
 
 # Required fields for v2 vital signs (non-nullable)
 _VITAL_REQUIRED_FIELDS = [
@@ -61,9 +65,10 @@ _PREDICTION_REQUIRED_FIELDS = [
 def parse_vital(payload_str: str) -> dict:
     """Parse and validate a v2 JSON vital signs payload string.
 
-    Enforces strict contract: ``version`` must equal ``"2.0"``.  Messages with a
-    missing or mismatched version are logged as errors and a ``ValueError`` is
-    raised so the caller can drop the message without crashing.
+    Validates v2 contract compatibility. The version can be provided as
+    ``version`` or a supported alias key. If version is omitted but all required
+    v2 fields are present, version is inferred as ``"2.0"`` and processing
+    continues.
 
     Args:
         payload_str: JSON-encoded string with v2 vital sign data.
@@ -81,19 +86,40 @@ def parse_vital(payload_str: str) -> dict:
         logger.warning("Failed to parse vital payload: %s", exc)
         raise ValueError(f"Invalid JSON payload: {exc}") from exc
 
-    # --- Version contract enforcement ---
-    received_version = data.get("version")
-    if received_version != VITALS_SCHEMA_VERSION:
-        logger.error(
-            "Vitals schema version mismatch: expected '%s', received '%s'. "
-            "Dropping message. Update the publisher to emit v2 payloads.",
-            VITALS_SCHEMA_VERSION,
-            received_version,
-        )
-        raise ValueError(
-            f"Schema version mismatch: expected '{VITALS_SCHEMA_VERSION}', "
-            f"got '{received_version}'"
-        )
+    # --- Version contract enforcement with compatibility aliases ---
+    received_version = None
+    for key in _VERSION_KEYS:
+        value = data.get(key)
+        if value is not None:
+            received_version = str(value)
+            break
+
+    allowed_versions = {"2", "2.0"}
+    if received_version not in allowed_versions:
+        missing_version = received_version is None
+        # Some publisher versions omit explicit version but still emit full v2 fields.
+        if missing_version and all(
+            field in data for field in _VITAL_REQUIRED_FIELDS if field != "version"
+        ):
+            logger.warning(
+                "Vitals schema version missing; inferred '%s' from v2 field set",
+                VITALS_SCHEMA_VERSION,
+            )
+            data["version"] = VITALS_SCHEMA_VERSION
+        else:
+            logger.error(
+                "Vitals schema version mismatch: expected '%s', received '%s'. "
+                "Dropping message. Update the publisher to emit v2 payloads.",
+                VITALS_SCHEMA_VERSION,
+                received_version,
+            )
+            raise ValueError(
+                f"Schema version mismatch: expected '{VITALS_SCHEMA_VERSION}', "
+                f"got '{received_version}'"
+            )
+    else:
+        # Canonicalize the field for downstream traceability and logging.
+        data["version"] = VITALS_SCHEMA_VERSION
 
     # --- Required field presence ---
     for field in _VITAL_REQUIRED_FIELDS:
