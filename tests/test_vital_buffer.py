@@ -14,8 +14,8 @@ def _make_vital(
     respiratory_rate=16.0,
     wbc=7.5,
     lactate=0.9,
-    sirs_score=0.0,
-    qsofa_score=0.0,
+    sirs_score=0,
+    qsofa_score=0,
     ts_offset=0,
 ):
     return {
@@ -124,8 +124,8 @@ class TestVitalBuffer:
                     o2_sat=96.0,
                     respiratory_rate=20.0,
                     lactate=2.0,
-                    sirs_score=2.0,
-                    qsofa_score=1.0,
+                    sirs_score=2,
+                    qsofa_score=1,
                     ts_offset=i,
                 )
             )

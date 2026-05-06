@@ -19,8 +19,8 @@ def _make_vital(
     respiratory_rate=16.0,
     wbc=7.5,
     lactate=0.9,
-    sirs_score=0.0,
-    qsofa_score=0.0,
+    sirs_score=0,
+    qsofa_score=0,
 ):
     return {
         "version": "2.0",
@@ -91,8 +91,8 @@ class TestSepsisScorer:
                 respiratory_rate=26.0,
                 wbc=14.5,
                 lactate=3.2,
-                sirs_score=3.0,
-                qsofa_score=2.0,
+                sirs_score=3,
+                qsofa_score=2,
             ),
         )
         scorer = SepsisScorer(_mock_model(0.9))

@@ -73,35 +73,56 @@ class TestMqttPayload:
             mqtt_payload.parse_vital(json.dumps(data))
 
     def test_parse_vital_version_missing_rejected(self):
-        """Missing version is inferred as v2 when payload contains complete v2 field set."""
+        """Payload with no version field must be rejected."""
         data = json.loads(self.VALID_VITAL)
         del data["version"]
-        vital = mqtt_payload.parse_vital(json.dumps(data))
-        assert vital["version"] == "2.0"
+        with pytest.raises(ValueError, match="Schema version mismatch"):
+            mqtt_payload.parse_vital(json.dumps(data))
 
     def test_parse_vital_version_none_rejected(self):
-        """Explicit null version is normalized to v2 when payload is otherwise valid."""
+        """Explicit null version must be rejected."""
         data = json.loads(self.VALID_VITAL)
         data["version"] = None
-        vital = mqtt_payload.parse_vital(json.dumps(data))
-        assert vital["version"] == "2.0"
+        with pytest.raises(ValueError, match="Schema version mismatch"):
+            mqtt_payload.parse_vital(json.dumps(data))
 
-    def test_parse_vital_schema_version_alias_accepted(self):
-        """schema_version alias should be accepted for v2 publisher compatibility."""
+    def test_parse_vital_schema_version_alias_rejected(self):
+        """schema_version alias is not supported; payload must use the 'version' key."""
         data = json.loads(self.VALID_VITAL)
         del data["version"]
         data["schema_version"] = "2.0"
-        vital = mqtt_payload.parse_vital(json.dumps(data))
-        assert vital["version"] == "2.0"
+        with pytest.raises(ValueError, match="Schema version mismatch"):
+            mqtt_payload.parse_vital(json.dumps(data))
 
-    def test_parse_vital_numeric_version_accepted(self):
-        """Numeric version values should normalize to canonical v2 version."""
+    def test_parse_vital_numeric_version_rejected(self):
+        """Numeric version values are not permitted; string '2.0' is required."""
         data = json.loads(self.VALID_VITAL)
         data["version"] = 2
-        vital = mqtt_payload.parse_vital(json.dumps(data))
-        assert vital["version"] == "2.0"
+        with pytest.raises(ValueError, match="Schema version mismatch"):
+            mqtt_payload.parse_vital(json.dumps(data))
 
     # ── missing / invalid field handling ─────────────────────────────────────
+
+    def test_parse_vital_extra_fields_rejected(self):
+        """Payload with fields outside the v2 contract must be rejected."""
+        data = json.loads(self.VALID_VITAL)
+        data["extra_field"] = "unexpected"
+        with pytest.raises(ValueError, match="Unknown fields not permitted"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_sepsis_onset_ts_missing_rejected(self):
+        """Payload missing sepsis_onset_ts must be rejected (field is required by contract)."""
+        data = json.loads(self.VALID_VITAL)
+        del data["sepsis_onset_ts"]
+        with pytest.raises(ValueError, match="Missing required field: 'sepsis_onset_ts'"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_sepsis_onset_ts_float_rejected(self):
+        """A float sepsis_onset_ts must be rejected; only null or integer epoch-ms is valid."""
+        data = json.loads(self.VALID_VITAL)
+        data["sepsis_onset_ts"] = 1712973620000.5
+        with pytest.raises(ValueError, match="sepsis_onset_ts"):
+            mqtt_payload.parse_vital(json.dumps(data))
 
     def test_parse_vital_invalid_json(self):
         with pytest.raises(ValueError, match="Invalid JSON"):

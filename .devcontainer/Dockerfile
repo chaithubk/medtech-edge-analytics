@@ -28,6 +28,11 @@ RUN pip install --upgrade pip setuptools wheel
 
 WORKDIR /workspace
 
+# Install all Python dependencies (runtime + dev) so the image is fully self-contained.
+# requirements-dev.txt includes -r requirements.txt so a single install covers both.
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
 # Set environment variables
 ENV MQTT_BROKER=localhost
 ENV MQTT_PORT=1883

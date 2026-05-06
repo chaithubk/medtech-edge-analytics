@@ -56,6 +56,7 @@ jobs:
       - name: Check for changes
         id: diff
         run: |
+          TAG="${{ steps.tag.outputs.tag }}"
           if git diff --quiet; then
             echo "No changes – already at ${TAG}."
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
