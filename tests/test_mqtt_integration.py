@@ -73,14 +73,14 @@ class TestMqttPayload:
             mqtt_payload.parse_vital(json.dumps(data))
 
     def test_parse_vital_version_missing_rejected(self):
-        """Missing version is accepted when the payload is otherwise valid v2."""
+        """Missing version is inferred as v2 when payload contains complete v2 field set."""
         data = json.loads(self.VALID_VITAL)
         del data["version"]
         vital = mqtt_payload.parse_vital(json.dumps(data))
         assert vital["version"] == "2.0"
 
     def test_parse_vital_version_none_rejected(self):
-        """Explicit null version must be rejected."""
+        """Explicit null version is normalized to v2 when payload is otherwise valid."""
         data = json.loads(self.VALID_VITAL)
         data["version"] = None
         vital = mqtt_payload.parse_vital(json.dumps(data))
