@@ -1,0 +1,58 @@
+name: Contract Drift Check
+
+on:
+  schedule:
+    # Runs daily at 07:00 UTC
+    - cron: '0 7 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  drift-check:
+    name: Check for upstream contract updates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read pinned contract version
+        id: pinned
+        run: |
+          VERSION=$(cat contracts/VITALS_CONTRACT_VERSION.txt | tr -d '[:space:]')
+          echo "pinned_tag=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Pinned contract version: ${VERSION}"
+
+      - name: Fetch latest tag from contract repo
+        id: latest
+        run: |
+          LATEST=$(curl -s \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/chaithubk/medtech-telemetry-contract/tags" \
+            | python3 -c "import sys,json; tags=json.load(sys.stdin); print(tags[0]['name'] if tags else '')")
+          echo "latest_tag=${LATEST}" >> "$GITHUB_OUTPUT"
+          echo "Latest upstream contract tag: ${LATEST}"
+
+      - name: Compare versions
+        run: |
+          PINNED="${{ steps.pinned.outputs.pinned_tag }}"
+          LATEST="${{ steps.latest.outputs.latest_tag }}"
+
+          if [ -z "${LATEST}" ]; then
+            echo "::warning::Could not fetch tags from chaithubk/medtech-telemetry-contract. Skipping drift check."
+            exit 0
+          fi
+
+          if [ "${PINNED}" == "${LATEST}" ]; then
+            echo "Contract is up to date: ${PINNED}"
+            exit 0
+          fi
+
+          echo "::error::New telemetry contract tag available: ${LATEST} (currently pinned: ${PINNED})."
+          echo ""
+          echo "To update:"
+          echo "  1. Run the 'Vendor Telemetry Contract' workflow with tag '${LATEST}'."
+          echo "  2. Review and merge the resulting PR."
+          echo ""
+          echo "Contract repo: https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/${LATEST}"
+          exit 1

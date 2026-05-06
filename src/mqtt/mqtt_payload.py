@@ -23,6 +23,8 @@ _VERSION_KEYS = ("version", "schema_version", "payload_version", "contract_versi
 _VITAL_REQUIRED_FIELDS = [
     "version",
     "patient_id",
+    "scenario",
+    "scenario_stage",
     "timestamp",
     "hr",
     "bp_sys",
@@ -34,6 +36,7 @@ _VITAL_REQUIRED_FIELDS = [
     "lactate",
     "sirs_score",
     "qsofa_score",
+    "sepsis_stage",
     "quality",
     "source",
 ]

@@ -13,7 +13,7 @@ def sample_vital():
         "version": "2.0",
         "patient_id": "patient-001",
         "scenario": "healthy",
-        "scenario_stage": "stable",
+        "scenario_stage": "healthy",
         "timestamp": 1712973600000,
         "hr": 92.0,
         "bp_sys": 135.0,
@@ -23,11 +23,11 @@ def sample_vital():
         "respiratory_rate": 16.0,
         "wbc": 7.5,
         "lactate": 0.9,
-        "sirs_score": 0.0,
-        "qsofa_score": 0.0,
+        "sirs_score": 0,
+        "qsofa_score": 0,
         "sepsis_stage": "none",
         "sepsis_onset_ts": None,
-        "quality": 95,
+        "quality": "good",
         "source": "simulator",
     }
 
@@ -39,7 +39,7 @@ def sample_vital_unhealthy():
         "version": "2.0",
         "patient_id": "patient-002",
         "scenario": "sepsis",
-        "scenario_stage": "onset",
+        "scenario_stage": "sepsis_onset",
         "timestamp": 1712973600000,
         "hr": 125.0,  # Elevated
         "bp_sys": 95.0,  # Low
@@ -49,11 +49,11 @@ def sample_vital_unhealthy():
         "respiratory_rate": 26.0,  # Elevated
         "wbc": 14.5,  # Elevated
         "lactate": 3.2,  # Elevated
-        "sirs_score": 3.0,
-        "qsofa_score": 2.0,
+        "sirs_score": 3,
+        "qsofa_score": 2,
         "sepsis_stage": "sepsis",
         "sepsis_onset_ts": None,
-        "quality": 85,
+        "quality": "degraded",
         "source": "simulator",
     }
 
@@ -70,7 +70,7 @@ def vital_sequence():
                 "version": "2.0",
                 "patient_id": "patient-001",
                 "scenario": "healthy",
-                "scenario_stage": "stable",
+                "scenario_stage": "healthy",
                 "timestamp": base_time + (i * 10000),
                 "hr": 80.0 + rng.normal(0, 3),
                 "bp_sys": 120.0 + rng.normal(0, 5),
@@ -80,11 +80,11 @@ def vital_sequence():
                 "respiratory_rate": 16.0 + rng.normal(0, 1),
                 "wbc": 7.5 + rng.normal(0, 0.5),
                 "lactate": 0.9 + rng.normal(0, 0.1),
-                "sirs_score": 0.0,
-                "qsofa_score": 0.0,
+                "sirs_score": 0,
+                "qsofa_score": 0,
                 "sepsis_stage": "none",
                 "sepsis_onset_ts": None,
-                "quality": 95,
+                "quality": "good",
                 "source": "simulator",
             }
         )

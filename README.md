@@ -106,6 +106,20 @@ Environment variables are defined in `src/utils/config.py`.
 
 ## Telemetry Contract (v2)
 
+The canonical telemetry contract lives in the central contract repository:
+
+> **[chaithubk/medtech-telemetry-contract](https://github.com/chaithubk/medtech-telemetry-contract)**
+> — pinned at tag **[v2.0.0](https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/v2.0.0)**
+
+A vendored copy of the schema is stored in `contracts/vitals/v2.0.json` for
+offline / Yocto build reproducibility.  The pinned tag is recorded in
+`contracts/VITALS_CONTRACT_VERSION.txt`.
+
+The `Contract Drift Check` workflow runs daily and fails with a clear message
+when a newer contract tag is available upstream.  The `Vendor Telemetry
+Contract` workflow (manual trigger) downloads the new schema and opens a PR
+automatically.  See `contracts/README.md` for the full update procedure.
+
 The service validates v2 payloads and accepts schema version via `version` or compatibility aliases (`schema_version`, `payload_version`, `contract_version`).
 If version is omitted but all required v2 fields are present, the message is treated as v2 and normalized to `"2.0"`.
 Mismatched versions are logged and dropped safely.
@@ -119,7 +133,7 @@ Mismatched versions are logged and dropped safely.
 
 ### Required input fields
 
-`version`, `patient_id`, `timestamp`, `hr`, `bp_sys`, `bp_dia`, `o2_sat`, `temperature`, `respiratory_rate`, `wbc`, `lactate`, `sirs_score`, `qsofa_score`, `quality`, `source`
+`version`, `patient_id`, `scenario`, `scenario_stage`, `timestamp`, `hr`, `bp_sys`, `bp_dia`, `o2_sat`, `temperature`, `respiratory_rate`, `wbc`, `lactate`, `sirs_score`, `qsofa_score`, `sepsis_stage`, `sepsis_onset_ts` (nullable), `quality`, `source`
 
 ### Input validation ranges
 

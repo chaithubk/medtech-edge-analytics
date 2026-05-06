@@ -19,7 +19,7 @@ class TestMqttPayload:
             "version": "2.0",
             "patient_id": "patient-test-001",
             "scenario": "healthy",
-            "scenario_stage": "stable",
+            "scenario_stage": "healthy",
             "timestamp": 1712973600000,
             "hr": 80.0,
             "bp_sys": 120.0,
@@ -29,11 +29,11 @@ class TestMqttPayload:
             "respiratory_rate": 16.0,
             "wbc": 7.5,
             "lactate": 0.9,
-            "sirs_score": 0.0,
-            "qsofa_score": 0.0,
+            "sirs_score": 0,
+            "qsofa_score": 0,
             "sepsis_stage": "none",
             "sepsis_onset_ts": None,
-            "quality": 95,
+            "quality": "good",
             "source": "simulator",
         }
     )

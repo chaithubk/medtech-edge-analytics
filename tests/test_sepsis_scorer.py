@@ -25,8 +25,8 @@ def _make_vital(
     return {
         "version": "2.0",
         "patient_id": "patient-test-001",
-        "scenario": "test",
-        "scenario_stage": "stable",
+        "scenario": "healthy",
+        "scenario_stage": "healthy",
         "timestamp": 1712973600000 + idx * 10000,
         "hr": hr,
         "bp_sys": bp_sys,
@@ -40,7 +40,7 @@ def _make_vital(
         "qsofa_score": qsofa_score,
         "sepsis_stage": "none",
         "sepsis_onset_ts": None,
-        "quality": 95,
+        "quality": "good",
         "source": "simulator",
     }
 
