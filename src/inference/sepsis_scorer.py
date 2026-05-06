@@ -18,6 +18,16 @@ _EPSILON = 1e-7
 
 # Pre-computed normalization statistics (from training data)
 # Shape: (20,) - one entry per feature in the order returned by VitalBuffer.get_all_features()
+#
+# Feature positions:
+#  0- 4: hr_mean, hr_std, hr_min, hr_max, hr_trend
+#  5- 9: bp_sys_mean, bp_sys_std, bp_sys_min, bp_sys_max, bp_sys_trend
+# 10-14: bp_dia_mean, bp_dia_std, bp_dia_min, bp_dia_max, bp_dia_trend
+#    15: o2_mean
+#    16: rr_mean           (respiratory rate — v2)
+#    17: rr_trend          (respiratory rate dynamics — v2)
+#    18: lactate_mean      (mmol/L — v2)
+#    19: sirs_qsofa_mean   (SIRS + qSOFA composite 0-7 — v2)
 _NORM_MEANS = np.array(
     [
         85.0,
@@ -35,11 +45,11 @@ _NORM_MEANS = np.array(
         60.0,
         100.0,
         0.0,  # bp_dia
-        96.0,
-        2.0,
-        90.0,
-        100.0,
-        0.0,  # o2
+        96.0,  # o2_mean
+        16.0,  # rr_mean  (normal ~12-20 bpm)
+        0.0,  # rr_trend
+        1.2,  # lactate_mean  (normal <2 mmol/L)
+        1.5,  # sirs_qsofa_mean  (combined, normal ~0-1)
     ],
     dtype=np.float32,
 )
@@ -60,11 +70,11 @@ _NORM_STDS = np.array(
         10.0,
         10.0,
         1.0,  # bp_dia
-        2.0,
-        1.0,
-        5.0,
-        2.0,
-        1.0,  # o2
+        2.0,  # o2_mean
+        5.0,  # rr_mean
+        1.0,  # rr_trend
+        1.5,  # lactate_mean
+        2.0,  # sirs_qsofa_mean
     ],
     dtype=np.float32,
 )

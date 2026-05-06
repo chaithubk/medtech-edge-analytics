@@ -5,7 +5,6 @@
 **Name**: MedTech Edge Analytics  
 **Repository**: chaithubk/medtech-edge-analytics  
 **Owner**: krishna chaithanya balakavi  
-**Stage**: 1 (MVP - Sepsis Detection)  
 **Tech Stack**: Python 3.11, TensorFlow Lite, Paho MQTT, NumPy  
 
 ## Business Context
@@ -15,7 +14,7 @@
 **Value**: Clinician time saved, better patient outcomes  
 **Risk**: Model accuracy < 90%, latency >100ms  
 
-## Technical Goals (Stage 1)
+## Technical Goals
 
 1. ✅ Load & run pre-trained TFLite sepsis model
 2. ✅ Maintain 360-point vital history (1 hour rolling window)
@@ -29,11 +28,11 @@
 
 **Upstream (Data Source)**:
 - medtech-vitals-publisher → MQTT topic: `medtech/vitals/latest`
-- Input: JSON with HR, BP, O2, Temp, Quality, Timestamp
+- Input: strict v2 JSON payload with schema validation and range checks
 
 **Downstream (Alert Consumer)**:
 - medtech-clinician-ui ← MQTT topic: `medtech/predictions/sepsis`
-- Output: JSON with Risk Score (0-100), Confidence, Feature Contributions
+- Output: JSON with risk score, confidence, latency, and traceability fields
 
 ## Success Metrics
 
@@ -67,7 +66,7 @@
 ## Assumptions
 
 - Vitals arrive every 10 seconds (consistent cadence)
-- Model is pre-trained and provided (no training in Stage 1)
+- Model is pre-trained and provided (training pipeline external to this repository)
 - MQTT broker is available at localhost:1883
 - Python 3.11+ with NumPy, TensorFlow Lite Runtime
 - <100ms latency is acceptable for clinical workflows
@@ -80,7 +79,7 @@
 - ❌ No hardcoded paths (use environment variables)
 - ❌ No global state (pure functions where possible)
 
-## Next Steps (After Stage 1)
+## Next Steps
 
 1. Collect real patient data
 2. Label cohorts (sepsis vs. non-sepsis)

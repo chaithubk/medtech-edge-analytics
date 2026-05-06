@@ -10,9 +10,25 @@ logger = get_logger(__name__)
 
 
 class VitalBuffer:
-    """Circular buffer for vital history (360 points = 1 hour @ 10s)."""
+    """Circular buffer for vital history (360 points = 1 hour @ 10s).
 
-    REQUIRED_FIELDS = ["hr", "bp_sys", "bp_dia", "o2_sat", "temperature"]
+    Accepts v2 vital payloads which include the following additional clinical
+    fields over the original schema: ``respiratory_rate``, ``wbc``,
+    ``lactate``, ``sirs_score``, ``qsofa_score``.
+    """
+
+    REQUIRED_FIELDS = [
+        "hr",
+        "bp_sys",
+        "bp_dia",
+        "o2_sat",
+        "temperature",
+        "respiratory_rate",
+        "wbc",
+        "lactate",
+        "sirs_score",
+        "qsofa_score",
+    ]
 
     def __init__(self, size: int = 360) -> None:
         """Initialize circular buffer.
@@ -24,10 +40,10 @@ class VitalBuffer:
         self._buffer: deque = deque(maxlen=size)
 
     def add_vital(self, vital: dict) -> None:
-        """Add a vital reading to the buffer.
+        """Add a v2 vital reading to the buffer.
 
         Args:
-            vital: Dict with keys: hr, bp_sys, bp_dia, o2_sat, temperature.
+            vital: Dict containing at minimum the keys in REQUIRED_FIELDS.
         """
         for field in self.REQUIRED_FIELDS:
             if field not in vital:
@@ -51,7 +67,9 @@ class VitalBuffer:
             window_size: Number of most recent points to include.
 
         Returns:
-            Dict with mean, std, min, max, trend for each vital sign.
+            Dict with mean, std, min, max, trend for core vitals plus mean
+            values for the new v2 clinical fields (respiratory_rate, lactate,
+            sirs_score, qsofa_score).
         """
         history = list(self._buffer)
         window = history[-window_size:] if len(history) >= window_size else history
@@ -72,6 +90,10 @@ class VitalBuffer:
         bp_dia = _arr("bp_dia")
         o2 = _arr("o2_sat")
         temp = _arr("temperature")
+        rr = _arr("respiratory_rate")
+        lactate = _arr("lactate")
+        sirs = _arr("sirs_score")
+        qsofa = _arr("qsofa_score")
 
         return {
             "hr_mean": float(np.mean(hr)),
@@ -99,6 +121,12 @@ class VitalBuffer:
             "temp_min": float(np.min(temp)),
             "temp_max": float(np.max(temp)),
             "temp_trend": _trend(temp),
+            # v2 clinical fields
+            "rr_mean": float(np.mean(rr)),
+            "rr_trend": _trend(rr),
+            "lactate_mean": float(np.mean(lactate)),
+            "sirs_score_mean": float(np.mean(sirs)),
+            "qsofa_score_mean": float(np.mean(qsofa)),
         }
 
     def get_history(self) -> list:
@@ -112,15 +140,20 @@ class VitalBuffer:
     def get_all_features(self) -> np.ndarray:
         """Return 20-feature vector shaped (1, 20) for TFLite model input.
 
-        Feature order (CRITICAL - must match model):
+        Feature order (CRITICAL - must match model normalization constants):
           0-4:   hr_mean, hr_std, hr_min, hr_max, hr_trend
           5-9:   bp_sys_mean, bp_sys_std, bp_sys_min, bp_sys_max, bp_sys_trend
           10-14: bp_dia_mean, bp_dia_std, bp_dia_min, bp_dia_max, bp_dia_trend
-          15-19: o2_mean, o2_std, o2_min, o2_max, o2_trend
+          15:    o2_mean
+          16:    rr_mean           (respiratory rate — v2 clinical field)
+          17:    rr_trend          (respiratory rate dynamics — v2 clinical field)
+          18:    lactate_mean      (lactate level — v2 clinical field)
+          19:    sirs_qsofa_mean   (mean SIRS + mean qSOFA composite — v2 clinical field)
 
-        Note: temperature is in REQUIRED_FIELDS and available via get_stats() for
-        monitoring/alerting, but is intentionally excluded from the 20-feature ML
-        vector to match the trained model's input specification.
+        Note: temperature is available via get_stats() for monitoring/alerting
+        but is intentionally excluded from the ML vector.  The o2 statistics
+        beyond o2_mean (std/min/max/trend) were replaced by the four new v2
+        clinical features above to preserve the (1, 20) model input shape.
 
         Returns:
             np.ndarray of shape (1, 20) dtype float32.
@@ -148,10 +181,10 @@ class VitalBuffer:
                 stats["bp_dia_max"],
                 stats["bp_dia_trend"],
                 stats["o2_mean"],
-                stats["o2_std"],
-                stats["o2_min"],
-                stats["o2_max"],
-                stats["o2_trend"],
+                stats["rr_mean"],
+                stats["rr_trend"],
+                stats["lactate_mean"],
+                stats["sirs_score_mean"] + stats["qsofa_score_mean"],  # composite 0-7
             ],
             dtype=np.float32,
         ).reshape(1, 20)

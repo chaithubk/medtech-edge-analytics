@@ -1,72 +1,86 @@
-# Sepsis Detection Model
+# Sepsis Risk Model Card
 
-## Model Card
+## Model Summary
 
-**Model Name**: Sepsis Risk Predictor v0.1  
-**Framework**: TensorFlow Lite  
-**Format**: Quantized INT8  
-**Size**: <5MB  
-**Latency**: <100ms (ARM CPU)  
+- Model name: Sepsis Risk Predictor
+- Task: Binary risk scoring for sepsis likelihood
+- Runtime: TensorFlow Lite
+- Input shape: `(1, 20)`
+- Output shape: `(1, 1)`
+- Output semantics: probability-like score in the range `[0, 1]`
 
-## Deployment Artifacts
+## Artifacts
 
-- `sepsis_model.tflite`: Current default model used in development.
-- `sepsis_model_qemu.tflite`: QEMU image artifact path for deployment packaging.
+- `sepsis_model.tflite`: default runtime artifact used by the service
+- `sepsis_model_qemu.tflite`: QEMU/embedded compatibility artifact
 
-Important: In this Stage 1 repository, the model is a provided placeholder artifact.
-If QEMU/Yocto runtime requires stricter compatibility (older TFLite runtime or
-different operator support), regenerate `sepsis_model_qemu.tflite` from the
-original SavedModel/Keras source using `tools/convert_model_for_qemu.py`.
+If target runtime constraints differ (for example older operator support), regenerate `sepsis_model_qemu.tflite` with `tools/convert_model_for_qemu.py` from the source model.
 
-## Input
+## Intended Use
 
-- **Shape**: (1, 20)
-- **Type**: float32
-- **Features**: 20 engineered features from vital history
-  - Heart rate trend
-  - Blood pressure variability
-  - O2 saturation trend
-  - Temperature dynamics
-  - Composite risk indicators
+This model is intended for edge analytics experimentation and integration testing in sepsis-risk workflows.
 
-## Output
+- Intended users: engineering and data teams validating device-side inference
+- Intended environment: on-device inference service connected to MQTT telemetry
+- Out of scope: autonomous diagnosis, treatment recommendation, or direct clinical decision authority
 
-- **Shape**: (1, 1)
-- **Type**: float32
-- **Range**: 0.0 - 1.0
-- **Interpretation**: Sepsis probability
-  - 0.0 - 0.3: Low risk
-  - 0.3 - 0.7: Moderate risk
-  - 0.7 - 1.0: High risk
+## Inputs
 
-## Performance
+The 20 engineered features are derived from the rolling vital buffer:
 
-| Metric | Value |
-|--------|-------|
-| Accuracy | >90% |
-| Sensitivity | >85% |
-| Specificity | >90% |
-| False Positive Rate | <10% |
-| Inference Time | <100ms |
+- Heart rate statistics: mean, std, min, max, trend
+- Systolic blood pressure statistics: mean, std, min, max, trend
+- Diastolic blood pressure statistics: mean, std, min, max, trend
+- Oxygen saturation mean
+- Respiratory rate mean and trend
+- Lactate mean
+- Composite SIRS and qSOFA mean score
 
-## Assumptions
+Note: Temperature and additional oxygen trend metrics are available in service statistics but excluded from the model vector to preserve the expected input contract.
 
-- Vitals arrive every 10 seconds
-- Model input is pre-processed features
-- Single prediction per inference
-- Stateless (no sequence dependence)
+## Outputs and Thresholding
 
-## Limitations
+Inference output is mapped to user-facing risk levels:
 
-- Trained on synthetic data (Stage 1)
-- Requires real-world validation (Stage 2)
-- Single model (ensemble recommended for production)
-- No temporal context (uses current window only)
+- `LOW`: `< 0.30`
+- `MODERATE`: `0.30` to `0.70`
+- `HIGH`: `> 0.70`
 
-## Future Work (Stage 2+)
+The service additionally reports:
 
-- Retrain on real patient cohorts
-- Add explainability (SHAP)
-- Ensemble with other models
-- Temporal modeling (LSTM)
-- Continuous learning from feedback
+- `risk_score` in percent (`0` to `100`)
+- `confidence` (raw model output)
+- `model_latency_ms`
+
+## Data and Training Status
+
+This repository ships inference artifacts only. Training code and lineage metadata are not included here.
+
+- Current status: development artifact for integration and performance testing
+- Validation status: requires formal clinical and external cohort validation before clinical deployment
+
+## Performance Characteristics
+
+Operational target in this project:
+
+- Inference latency target: `< 100 ms` in typical edge environments
+
+Published clinical metrics (AUROC, sensitivity, specificity, calibration) should be added only once evaluated on governed datasets.
+
+## Risks and Limitations
+
+- No documented training-data provenance in this repository
+- No calibration report included in current artifact package
+- Single-model approach without ensemble redundancy
+- Prediction quality depends on telemetry quality, cadence, and schema compliance
+
+## Governance Recommendations
+
+- Version and register each model artifact with immutable metadata
+- Track training dataset versions and label quality metrics
+- Add post-deployment drift and calibration monitoring
+- Define threshold management policy with clinical stakeholders
+
+## Change Log
+
+- Current: model card aligned with active inference pipeline and payload contract

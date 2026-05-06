@@ -1,6 +1,9 @@
 {
   "name": "Edge Analytics (Python 3.10 + TensorFlow Lite)",
-  "image": "python:3.10-bookworm",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
   "customizations": {
     "vscode": {
       "extensions": [
@@ -34,7 +37,6 @@
       }
     }
   },
-  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements-dev.txt",
   "forwardPorts": [1883],
   "portsAttributes": {
     "1883": {
