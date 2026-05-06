@@ -9,3 +9,6 @@ flake8==6.0.0
 mypy==1.4.1
 pylint==2.17.5
 isort==5.12.0
+
+# Contract schema validation (test/dev only – not a runtime dependency)
+jsonschema==4.23.0

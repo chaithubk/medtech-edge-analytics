@@ -1,0 +1,96 @@
+name: Vendor Telemetry Contract
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >
+          Tag to vendor from chaithubk/medtech-telemetry-contract
+          (leave empty to use the latest tag).
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  vendor:
+    name: Vendor contract schema and open PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve target tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -z "${TAG}" ]; then
+            TAG=$(curl -s \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/chaithubk/medtech-telemetry-contract/tags" \
+              | python3 -c "import sys,json; tags=json.load(sys.stdin); print(tags[0]['name'] if tags else '')")
+          fi
+          if [ -z "${TAG}" ]; then
+            echo "::error::Could not resolve a target tag."
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Vendoring contract at tag: ${TAG}"
+
+      - name: Download schema at target tag
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          SCHEMA_URL="https://raw.githubusercontent.com/chaithubk/medtech-telemetry-contract/${TAG}/schemas/vitals/v2.0.json"
+          echo "Fetching: ${SCHEMA_URL}"
+          mkdir -p contracts/vitals
+          curl -fsSL "${SCHEMA_URL}" -o contracts/vitals/v2.0.json
+          echo "${TAG}" > contracts/VITALS_CONTRACT_VERSION.txt
+          echo "Schema downloaded and version pin updated."
+
+      - name: Check for changes
+        id: diff
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          if git diff --quiet; then
+            echo "No changes – already at ${TAG}."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create update branch and open PR
+        if: steps.diff.outputs.has_changes == 'true'
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          BRANCH="chore/vendor-telemetry-contract-${TAG}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${BRANCH}"
+          git add contracts/
+          git commit -m "chore: vendor telemetry contract ${TAG}
+
+          - Updated contracts/vitals/v2.0.json from chaithubk/medtech-telemetry-contract@${TAG}
+          - Updated contracts/VITALS_CONTRACT_VERSION.txt to ${TAG}"
+          git push origin "${BRANCH}"
+
+          gh pr create \
+            --title "chore: vendor telemetry contract ${TAG}" \
+            --body "## Automated contract update
+
+          Vendored schema from [\`chaithubk/medtech-telemetry-contract@${TAG}\`](https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/${TAG}).
+
+          ### Checklist
+          - [ ] Review schema diff in \`contracts/vitals/v2.0.json\`
+          - [ ] Verify CI passes (schema validation test must pass)
+          - [ ] Update parser / fixtures if any fields changed
+          - [ ] Merge when green" \
+            --base main \
+            --head "${BRANCH}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

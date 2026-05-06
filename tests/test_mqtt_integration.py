@@ -12,32 +12,153 @@ from src.mqtt.mqtt_client import MQTTClient
 
 
 class TestMqttPayload:
+    """Tests for v2 MQTT payload parsing and serialisation."""
+
     VALID_VITAL = json.dumps(
         {
+            "version": "2.0",
+            "patient_id": "patient-test-001",
+            "scenario": "healthy",
+            "scenario_stage": "healthy",
             "timestamp": 1712973600000,
             "hr": 80.0,
             "bp_sys": 120.0,
             "bp_dia": 80.0,
             "o2_sat": 97.0,
             "temperature": 37.0,
-            "quality": 95,
+            "respiratory_rate": 16.0,
+            "wbc": 7.5,
+            "lactate": 0.9,
+            "sirs_score": 0,
+            "qsofa_score": 0,
+            "sepsis_stage": "none",
+            "sepsis_onset_ts": None,
+            "quality": "good",
             "source": "simulator",
         }
     )
+
+    # ── happy-path ────────────────────────────────────────────────────────────
 
     def test_parse_vital_valid(self):
         vital = mqtt_payload.parse_vital(self.VALID_VITAL)
         assert vital["hr"] == 80.0
         assert vital["bp_sys"] == 120.0
+        assert vital["version"] == "2.0"
+        assert vital["patient_id"] == "patient-test-001"
+        assert vital["respiratory_rate"] == 16.0
+        assert vital["lactate"] == 0.9
+        assert vital["sirs_score"] == 0.0
+        assert vital["qsofa_score"] == 0.0
+
+    def test_parse_vital_sepsis_onset_ts_null(self):
+        """sepsis_onset_ts is allowed to be null (onset not yet determined)."""
+        vital = mqtt_payload.parse_vital(self.VALID_VITAL)
+        assert vital.get("sepsis_onset_ts") is None
+
+    def test_parse_vital_sepsis_onset_ts_populated(self):
+        """sepsis_onset_ts is accepted when it holds an epoch-ms value."""
+        data = json.loads(self.VALID_VITAL)
+        data["sepsis_onset_ts"] = 1712973620000
+        vital = mqtt_payload.parse_vital(json.dumps(data))
+        assert vital["sepsis_onset_ts"] == 1712973620000
+
+    # ── schema version enforcement ────────────────────────────────────────────
+
+    def test_parse_vital_version_mismatch_rejected(self):
+        """Messages with wrong version must be rejected with a clear error."""
+        data = json.loads(self.VALID_VITAL)
+        data["version"] = "1.0"
+        with pytest.raises(ValueError, match="Schema version mismatch"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_version_missing_rejected(self):
+        """Payload with no version field must be rejected."""
+        data = json.loads(self.VALID_VITAL)
+        del data["version"]
+        with pytest.raises(ValueError, match="Schema version mismatch"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_version_none_rejected(self):
+        """Explicit null version must be rejected."""
+        data = json.loads(self.VALID_VITAL)
+        data["version"] = None
+        with pytest.raises(ValueError, match="Schema version mismatch"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_schema_version_alias_rejected(self):
+        """schema_version alias is not supported; payload must use the 'version' key."""
+        data = json.loads(self.VALID_VITAL)
+        del data["version"]
+        data["schema_version"] = "2.0"
+        with pytest.raises(ValueError, match="Schema version mismatch"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_numeric_version_rejected(self):
+        """Numeric version values are not permitted; string '2.0' is required."""
+        data = json.loads(self.VALID_VITAL)
+        data["version"] = 2
+        with pytest.raises(ValueError, match="Schema version mismatch"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    # ── missing / invalid field handling ─────────────────────────────────────
+
+    def test_parse_vital_extra_fields_rejected(self):
+        """Payload with fields outside the v2 contract must be rejected."""
+        data = json.loads(self.VALID_VITAL)
+        data["extra_field"] = "unexpected"
+        with pytest.raises(ValueError, match="Unknown fields not permitted"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_sepsis_onset_ts_missing_rejected(self):
+        """Payload missing sepsis_onset_ts must be rejected (field is required by contract)."""
+        data = json.loads(self.VALID_VITAL)
+        del data["sepsis_onset_ts"]
+        with pytest.raises(ValueError, match="Missing required field: 'sepsis_onset_ts'"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_sepsis_onset_ts_float_rejected(self):
+        """A float sepsis_onset_ts must be rejected; only null or integer epoch-ms is valid."""
+        data = json.loads(self.VALID_VITAL)
+        data["sepsis_onset_ts"] = 1712973620000.5
+        with pytest.raises(ValueError, match="sepsis_onset_ts"):
+            mqtt_payload.parse_vital(json.dumps(data))
 
     def test_parse_vital_invalid_json(self):
         with pytest.raises(ValueError, match="Invalid JSON"):
             mqtt_payload.parse_vital("{not valid json}")
 
     def test_parse_vital_missing_fields(self):
-        payload = json.dumps({"timestamp": 1000, "hr": 80.0})
+        """Payload missing required field (e.g. patient_id) must be rejected."""
+        payload = json.dumps({"version": "2.0", "timestamp": 1000, "hr": 80.0})
         with pytest.raises(ValueError, match="Missing required field"):
             mqtt_payload.parse_vital(payload)
+
+    def test_parse_vital_missing_respiratory_rate(self):
+        data = json.loads(self.VALID_VITAL)
+        del data["respiratory_rate"]
+        with pytest.raises(ValueError, match="Missing required field: 'respiratory_rate'"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_missing_lactate(self):
+        data = json.loads(self.VALID_VITAL)
+        del data["lactate"]
+        with pytest.raises(ValueError, match="Missing required field: 'lactate'"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_missing_sirs_score(self):
+        data = json.loads(self.VALID_VITAL)
+        del data["sirs_score"]
+        with pytest.raises(ValueError, match="Missing required field: 'sirs_score'"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_missing_qsofa_score(self):
+        data = json.loads(self.VALID_VITAL)
+        del data["qsofa_score"]
+        with pytest.raises(ValueError, match="Missing required field: 'qsofa_score'"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    # ── range validation ──────────────────────────────────────────────────────
 
     def test_parse_vital_out_of_range(self):
         data = json.loads(self.VALID_VITAL)
@@ -50,6 +171,32 @@ class TestMqttPayload:
         data["o2_sat"] = 20.0
         with pytest.raises(ValueError, match="out of range"):
             mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_respiratory_rate_out_of_range(self):
+        data = json.loads(self.VALID_VITAL)
+        data["respiratory_rate"] = 100.0
+        with pytest.raises(ValueError, match="out of range"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_lactate_out_of_range(self):
+        data = json.loads(self.VALID_VITAL)
+        data["lactate"] = 50.0
+        with pytest.raises(ValueError, match="out of range"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_sirs_score_out_of_range(self):
+        data = json.loads(self.VALID_VITAL)
+        data["sirs_score"] = 5.0
+        with pytest.raises(ValueError, match="out of range"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    def test_parse_vital_qsofa_score_out_of_range(self):
+        data = json.loads(self.VALID_VITAL)
+        data["qsofa_score"] = 4.0
+        with pytest.raises(ValueError, match="out of range"):
+            mqtt_payload.parse_vital(json.dumps(data))
+
+    # ── prediction serialisation ──────────────────────────────────────────────
 
     def test_serialize_prediction(self):
         prediction = {
@@ -65,6 +212,25 @@ class TestMqttPayload:
         assert parsed["risk_score"] == 25.5
         assert parsed["risk_level"] == "LOW"
         assert "  " in result  # pretty-printed with 2-space indent
+
+    def test_serialize_prediction_with_traceability_fields(self):
+        """Prediction payload with traceability fields must serialise cleanly."""
+        prediction = {
+            "risk_score": 75.0,
+            "risk_level": "HIGH",
+            "confidence": 0.75,
+            "timestamp_ms": 1712973600000,
+            "features_used": 20,
+            "model_latency_ms": 3.1,
+            "patient_id": "patient-001",
+            "vitals_version": "2.0",
+            "vitals_timestamp": 1712973600000,
+        }
+        result = mqtt_payload.serialize_prediction(prediction)
+        parsed = json.loads(result)
+        assert parsed["patient_id"] == "patient-001"
+        assert parsed["vitals_version"] == "2.0"
+        assert parsed["vitals_timestamp"] == 1712973600000
 
     def test_serialize_prediction_missing_field(self):
         with pytest.raises(ValueError, match="Missing required prediction field"):
