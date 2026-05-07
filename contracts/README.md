@@ -32,6 +32,29 @@ This ensures any payload drift is caught immediately as a failing CI test.
 The runtime parser (`src/mqtt/mqtt_payload.py`) enforces the v2 contract
 programmatically (required fields, version sentinel, numeric ranges).
 
+### Runtime schema path resolution
+
+At runtime the service resolves the schema file through the following priority
+chain (implemented in `src/utils/schema_loader.py`):
+
+1. `MEDTECH_VITALS_SCHEMA` environment variable (if set and non-empty).
+2. Default Yocto rootfs path: `/usr/share/medtech/contracts/vitals/current.json`.
+
+If the resolved file is **missing or unreadable the service hard-fails** (exits
+with code `1`).  The system is not backward-compatible and is not intended to
+run without a valid contract file.
+
+The vendored copy at `contracts/vitals/v2.0.json` is used in tests and CI by
+setting the env var:
+
+```bash
+MEDTECH_VITALS_SCHEMA=contracts/vitals/v2.0.json pytest tests/
+```
+
+On a Yocto device the `medtech-telemetry-contract` package installs the schema
+to `/usr/share/medtech/contracts/vitals/current.json` (a symlink to the pinned
+version file), so no env var override is needed in production.
+
 ## Update Procedure
 
 When the upstream contract repo publishes a new tag:

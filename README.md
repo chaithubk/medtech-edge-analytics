@@ -103,6 +103,27 @@ Environment variables are defined in `src/utils/config.py`.
 | `BUFFER_SIZE` | `360` | Number of buffered vital samples |
 | `VITAL_INTERVAL_S` | `10` | Synthetic scenario publish interval |
 | `LOGLEVEL` | `INFO` | Logging level |
+| `MEDTECH_VITALS_SCHEMA` | `/usr/share/medtech/contracts/vitals/current.json` | Path to the vitals JSON schema on the device rootfs. Set to the vendored copy (e.g. `contracts/vitals/v2.0.json`) for local development and CI. |
+
+### Runtime contract schema resolution
+
+At startup the service resolves the vitals JSON schema through the following
+priority chain:
+
+1. `MEDTECH_VITALS_SCHEMA` environment variable (if set and non-empty).
+2. Default Yocto rootfs path: `/usr/share/medtech/contracts/vitals/current.json`.
+
+If the resolved file is **missing or unreadable the service hard-fails** (exits
+with a non-zero code) and the systemd unit reports a failure.  This is
+intentional — the system is not backward-compatible and running without a
+contract file is not a defined state.
+
+For local development and CI, point the env var at the vendored schema:
+
+```bash
+export MEDTECH_VITALS_SCHEMA=contracts/vitals/v2.0.json
+python -m src --scenario healthy
+```
 
 ## Telemetry Contract (v2)
 

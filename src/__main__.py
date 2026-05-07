@@ -3,6 +3,7 @@
 import argparse
 import json
 import signal
+import sys
 import threading
 import time
 
@@ -13,6 +14,7 @@ from src.mqtt import mqtt_payload
 from src.mqtt.mqtt_client import MQTTClient
 from src.utils.config import Config
 from src.utils.logger import setup_logger
+from src.utils.schema_loader import resolve_schema_path
 
 # Scenario vital presets (v2 payload format)
 _SCENARIOS = {
@@ -122,6 +124,16 @@ def main():
     logger.info("MedTech Edge Analytics - Stage 1")
     logger.info("Scenario: %s", args.scenario)
     logger.info("Model path: %s", args.model_path)
+
+    # Resolve vitals contract schema — hard-fail if missing/unreadable.
+    # The system is not backward-compatible; running without a schema is not
+    # a defined state.
+    try:
+        schema_path = resolve_schema_path()
+        logger.info("Vitals contract schema loaded from: %s", schema_path)
+    except FileNotFoundError as exc:
+        logger.error("FATAL: %s", exc)
+        sys.exit(1)
 
     # Load TFLite model
     model = TFLiteModel(args.model_path)
