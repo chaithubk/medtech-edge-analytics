@@ -19,7 +19,7 @@
         "github.copilot-chat"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.defaultInterpreterPath": "/workspaces/medtech-edge-analytics/.venv/bin/python",
         "python.testing.pytestEnabled": true,
         "python.testing.pytestArgs": ["tests"],
         "[python]": {
@@ -44,6 +44,7 @@
       "onAutoForward": "notify"
     }
   },
+  "postCreateCommand": "bash -lc 'set -euo pipefail; cd /workspaces/medtech-edge-analytics; rm -rf .venv; /usr/local/bin/python -m venv .venv; .venv/bin/python -m pip install --upgrade pip setuptools wheel; .venv/bin/pip install -r requirements-dev.txt'",
   "remoteUser": "root",
   "remoteEnv": {
     "PYTHONUNBUFFERED": "1",

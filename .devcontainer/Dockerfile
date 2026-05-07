@@ -28,17 +28,12 @@ RUN apt-get update && apt-get install -y \
 # Upgrade pip
 RUN pip install --upgrade pip setuptools wheel
 
-WORKDIR /workspace
-
-# Install all Python dependencies (runtime + dev) so the image is fully self-contained.
-# requirements-dev.txt includes -r requirements.txt so a single install covers both.
-COPY requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir -r requirements-dev.txt
+WORKDIR /workspaces/medtech-edge-analytics
 
 # Set environment variables
 ENV MQTT_BROKER=localhost
 ENV MQTT_PORT=1883
 ENV LOGLEVEL=INFO
-ENV PYTHONPATH=/workspace/src:$PYTHONPATH
+ENV PYTHONPATH=/workspaces/medtech-edge-analytics/src:$PYTHONPATH
 
 CMD ["/bin/bash"]
