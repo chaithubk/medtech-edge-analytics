@@ -13,6 +13,11 @@ class Config:
     MQTT_TOPIC_PREDICTIONS: str = os.getenv("MQTT_TOPIC_PREDICTIONS", "medtech/predictions/sepsis")
     MQTT_QOS: int = int(os.getenv("MQTT_QOS", "1"))
 
+    # Contract schema
+    MEDTECH_VITALS_SCHEMA: str = os.getenv(
+        "MEDTECH_VITALS_SCHEMA", "/usr/share/medtech/contracts/vitals/current.json"
+    )
+
     # Model & Inference
     MODEL_PATH: str = os.getenv("MODEL_PATH", "models/sepsis_model.tflite")
     INFERENCE_TIMEOUT_MS: int = int(os.getenv("INFERENCE_TIMEOUT_MS", "100"))
