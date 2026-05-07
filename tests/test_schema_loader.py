@@ -117,18 +117,19 @@ class TestResolveSchemaPathFailure:
             resolve_schema_path()
 
     def test_unreadable_file_raises(self, tmp_path, monkeypatch):
-        """A path that exists but is not readable must raise FileNotFoundError."""
+        """A path that exists but is not readable must raise PermissionError."""
         schema_file = tmp_path / "no_read.json"
         schema_file.write_text("{}")
+        original_mode = schema_file.stat().st_mode
         schema_file.chmod(0o000)
         monkeypatch.setenv(_ENV_VAR, str(schema_file))
 
         try:
-            with pytest.raises(FileNotFoundError, match="not readable"):
+            with pytest.raises(PermissionError, match="not readable"):
                 resolve_schema_path()
         finally:
-            # Restore permissions so tmp_path cleanup does not fail.
-            schema_file.chmod(0o644)
+            # Restore original permissions so tmp_path cleanup does not fail.
+            schema_file.chmod(original_mode)
 
     def test_default_missing_raises(self, monkeypatch):
         """When the default path does not exist FileNotFoundError is raised."""

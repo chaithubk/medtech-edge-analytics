@@ -52,7 +52,7 @@ def resolve_schema_path() -> pathlib.Path:
         )
 
     if not os.access(schema_path, os.R_OK):
-        raise FileNotFoundError(
+        raise PermissionError(
             f"Vitals contract schema at '{schema_path}' is not readable. "
             f"Check file permissions or set {_ENV_VAR} to an accessible path."
         )
