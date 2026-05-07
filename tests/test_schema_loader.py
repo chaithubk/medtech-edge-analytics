@@ -14,19 +14,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.utils.schema_loader import (
-    _DEFAULT_SCHEMA_PATH,
-    _ENV_VAR,
-    resolve_schema_path,
-)
+from src.utils.schema_loader import _DEFAULT_SCHEMA_PATH, _ENV_VAR, resolve_schema_path
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_VENDORED_SCHEMA = (
-    pathlib.Path(__file__).parent.parent / "contracts" / "vitals" / "v2.0.json"
-)
+_VENDORED_SCHEMA = pathlib.Path(__file__).parent.parent / "contracts" / "vitals" / "v2.0.json"
 
 
 # ---------------------------------------------------------------------------
@@ -118,18 +112,17 @@ class TestResolveSchemaPathFailure:
 
     def test_unreadable_file_raises(self, tmp_path, monkeypatch):
         """A path that exists but is not readable must raise PermissionError."""
+        import os
+
         schema_file = tmp_path / "no_read.json"
         schema_file.write_text("{}")
-        original_mode = schema_file.stat().st_mode
-        schema_file.chmod(0o000)
         monkeypatch.setenv(_ENV_VAR, str(schema_file))
 
-        try:
-            with pytest.raises(PermissionError, match="not readable"):
-                resolve_schema_path()
-        finally:
-            # Restore original permissions so tmp_path cleanup does not fail.
-            schema_file.chmod(original_mode)
+        # Mock os.access to return False for this file
+        monkeypatch.setattr(os, "access", lambda path, mode: False)
+
+        with pytest.raises(PermissionError, match="not readable"):
+            resolve_schema_path()
 
     def test_default_missing_raises(self, monkeypatch):
         """When the default path does not exist FileNotFoundError is raised."""
