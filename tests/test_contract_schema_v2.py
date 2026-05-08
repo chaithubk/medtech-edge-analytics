@@ -3,6 +3,9 @@
 Validates fixture payloads against the vendored JSON Schema at
 ``contracts/vitals/v2.0.json``.  Any mismatch between fixtures and the
 pinned contract is a CI failure — this test acts as the drift guard.
+Validates fixture payloads against the vendored JSON Schema at
+``contracts/vitals/current.json``.  Any mismatch between fixtures and the
+pinned contract is a CI failure — this test acts as the drift guard.
 """
 
 import json
@@ -14,7 +17,7 @@ import pytest
 # Paths are resolved relative to the repository root so this test works
 # regardless of the working directory.
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
-_SCHEMA_PATH = _REPO_ROOT / "contracts" / "vitals" / "v2.0.json"
+_SCHEMA_PATH = _REPO_ROOT / "contracts" / "vitals" / "current.json"
 _FIXTURES_PATH = _REPO_ROOT / "tests" / "fixtures" / "sample_vitals.json"
 
 

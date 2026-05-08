@@ -20,13 +20,13 @@ contracts/
 ├── VITALS_CONTRACT_VERSION.txt   # Pinned tag from the contract repo
 ├── README.md                     # This file
 └── vitals/
-    └── v2.0.json                 # Vendored JSON Schema (draft-07)
+   └── current.json                 # Vendored JSON Schema (draft-07)
 ```
 
 ## How the Schema Is Used
 
 `tests/test_contract_schema_v2.py` validates every fixture payload against
-`contracts/vitals/v2.0.json` using the `jsonschema` library (dev dependency).
+`contracts/vitals/current.json` using the `jsonschema` library (dev dependency).
 This ensures any payload drift is caught immediately as a failing CI test.
 
 The runtime parser (`src/mqtt/mqtt_payload.py`) enforces the v2 contract
@@ -44,11 +44,12 @@ If the resolved file is **missing or unreadable the service hard-fails** (exits
 with code `1`).  The system is not backward-compatible and is not intended to
 run without a valid contract file.
 
-The vendored copy at `contracts/vitals/v2.0.json` is used in tests and CI by
+
+The vendored copy at `contracts/vitals/current.json` is used in tests and CI by
 setting the env var:
 
 ```bash
-MEDTECH_VITALS_SCHEMA=contracts/vitals/v2.0.json pytest tests/
+MEDTECH_VITALS_SCHEMA=contracts/vitals/current.json pytest tests/
 ```
 
 On a Yocto device the `medtech-telemetry-contract` package installs the schema
@@ -66,7 +67,7 @@ When the upstream contract repo publishes a new tag:
 2. **Vendor** – trigger the `Vendor Telemetry Contract` workflow
    (`workflow_dispatch`) and provide the new tag as input. The workflow will:
    - Download the schema at the new tag
-   - Update `contracts/vitals/v2.0.json` and `contracts/VITALS_CONTRACT_VERSION.txt`
+   - Update `contracts/vitals/current.json` and `contracts/VITALS_CONTRACT_VERSION.txt`
    - Open a PR automatically
 
 3. **Review** – the PR will include the schema diff.  CI validates that all

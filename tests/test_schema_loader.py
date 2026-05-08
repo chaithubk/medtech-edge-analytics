@@ -20,7 +20,7 @@ from src.utils.schema_loader import _DEFAULT_SCHEMA_PATH, _ENV_VAR, resolve_sche
 # Helpers
 # ---------------------------------------------------------------------------
 
-_VENDORED_SCHEMA = pathlib.Path(__file__).parent.parent / "contracts" / "vitals" / "v2.0.json"
+_VENDORED_SCHEMA = pathlib.Path(__file__).parent.parent / "contracts" / "vitals" / "current.json"
 
 
 # ---------------------------------------------------------------------------

@@ -12,10 +12,10 @@ If the resolved file is missing or unreadable the service must **hard-fail**
 report the failure and stop the unit — a system running without a contract
 file is not in a defined state.
 
-For tests and CI the vendored copy at ``contracts/vitals/v2.0.json`` can be
+For tests and CI the vendored copy at ``contracts/vitals/current.json`` can be
 injected via the environment variable without changing any code paths:
 
-    MEDTECH_VITALS_SCHEMA=contracts/vitals/v2.0.json pytest ...
+    MEDTECH_VITALS_SCHEMA=contracts/vitals/current.json pytest ...
 """
 
 import os

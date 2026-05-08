@@ -1,4 +1,28 @@
-# MedTech Edge Analytics
+# MedTech Edge Analytics: Contract Schema Vendoring & Versioning
+# Schema File Strategy
+- The active contract schema is always `contracts/vitals/current.json`.
+- All code and tests must reference only `current.json` (never versioned files like `v2.0.json`).
+- The exact upstream contract version is tracked in `contracts/VITALS_CONTRACT_VERSION.txt`.
+
+# Vendoring Workflow
+- Use the script `tools/vendor_telemetry_contract.py <tag>` to fetch the schema for a given tag from the upstream contract repo.
+- The script overwrites `current.json` and updates the pin file.
+- The GitHub Actions workflow `.github/workflows/vendor-telemetry-contract.yml` automates:
+    - Detecting new contract tags
+    - Running the vendoring script
+    - Bumping the codebase version in `src/__init__.py` to match the contract tag (stripping leading `v`)
+    - Committing, pushing, and opening/updating a PR (using a PAT secret)
+
+# Updating the Contract
+- No manual code or test changes are needed for contract updates.
+- When a new contract tag is released upstream, a PR will be opened automatically with the new schema, pin, and version bump.
+
+# Cleanup
+- Versioned schema files (e.g., `v2.0.json`) are not used and can be deleted once all code/tests reference `current.json`.
+
+# See Also
+- `contracts/README.md` for contract details.
+- `.github/workflows/vendor-telemetry-contract.yml` for automation logic.
 
 Edge inference service for sepsis risk scoring using TensorFlow Lite and MQTT.
 
@@ -103,7 +127,7 @@ Environment variables are defined in `src/utils/config.py`.
 | `BUFFER_SIZE` | `360` | Number of buffered vital samples |
 | `VITAL_INTERVAL_S` | `10` | Synthetic scenario publish interval |
 | `LOGLEVEL` | `INFO` | Logging level |
-| `MEDTECH_VITALS_SCHEMA` | `/usr/share/medtech/contracts/vitals/current.json` | Path to the vitals JSON schema on the device rootfs. Set to the vendored copy (e.g. `contracts/vitals/v2.0.json`) for local development and CI. |
+| `MEDTECH_VITALS_SCHEMA` | `/usr/share/medtech/contracts/vitals/current.json` | Path to the vitals JSON schema on the device rootfs. Set to the vendored copy (e.g. `contracts/vitals/current.json`) for local development and CI. |
 
 ### Runtime contract schema resolution
 
@@ -121,7 +145,7 @@ contract file is not a defined state.
 For local development and CI, point the env var at the vendored schema:
 
 ```bash
-export MEDTECH_VITALS_SCHEMA=contracts/vitals/v2.0.json
+export MEDTECH_VITALS_SCHEMA=contracts/vitals/current.json
 python -m src --scenario healthy
 ```
 
@@ -132,7 +156,7 @@ The canonical telemetry contract lives in the central contract repository:
 > **[chaithubk/medtech-telemetry-contract](https://github.com/chaithubk/medtech-telemetry-contract)**
 > — pinned at tag **[v2.0.0](https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/v2.0.0)**
 
-A vendored copy of the schema is stored in `contracts/vitals/v2.0.json` for
+A vendored copy of the schema is stored in `contracts/vitals/current.json` for
 offline / Yocto build reproducibility.  The pinned tag is recorded in
 `contracts/VITALS_CONTRACT_VERSION.txt`.
 

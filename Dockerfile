@@ -26,7 +26,7 @@ COPY models/ models/
 COPY contracts/ /usr/share/medtech/contracts/
 
 # Expose the current contract at the canonical path expected by schema_loader
-RUN ln -s /usr/share/medtech/contracts/vitals/v2.0.json \
+RUN ln -s /usr/share/medtech/contracts/vitals/current.json \
           /usr/share/medtech/contracts/vitals/current.json
 
 # Set environment variables

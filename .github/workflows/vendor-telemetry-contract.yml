@@ -43,15 +43,19 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Vendoring contract at tag: ${TAG}"
 
-      - name: Download schema at target tag
+      - name: Vendor new contract schema
+        env:
+          GH_TOKEN: ${{ secrets.CD_PAT }}
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          SCHEMA_URL="https://raw.githubusercontent.com/chaithubk/medtech-telemetry-contract/${TAG}/schemas/vitals/v2.0.json"
-          echo "Fetching: ${SCHEMA_URL}"
-          mkdir -p contracts/vitals
-          curl -fsSL "${SCHEMA_URL}" -o contracts/vitals/v2.0.json
-          echo "${TAG}" > contracts/VITALS_CONTRACT_VERSION.txt
-          echo "Schema downloaded and version pin updated."
+          pip install requests
+          python tools/vendor_telemetry_contract.py "${{ steps.tag.outputs.tag }}"
+      - name: Bump __version__ in src/__init__.py
+        env:
+          GH_TOKEN: ${{ secrets.CD_PAT }}
+        run: |
+          VERSION="${{ steps.tag.outputs.tag }}"
+          VERSION=${VERSION#v}
+          sed -i "s/^__version__ = .*/__version__ = '"$VERSION"'/" src/__init__.py
 
       - name: Check for changes
         id: diff
@@ -64,33 +68,40 @@ jobs:
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create update branch and open PR
+      - name: Commit and push changes
         if: steps.diff.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CD_PAT }}
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
           BRANCH="chore/vendor-telemetry-contract-${TAG}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "${BRANCH}"
-          git add contracts/
+          git add contracts/vitals/current.json contracts/VITALS_CONTRACT_VERSION.txt src/__init__.py
           git commit -m "chore: vendor telemetry contract ${TAG}
 
-          - Updated contracts/vitals/v2.0.json from chaithubk/medtech-telemetry-contract@${TAG}
-          - Updated contracts/VITALS_CONTRACT_VERSION.txt to ${TAG}"
-          git push origin "${BRANCH}"
+          - Updated contracts/vitals/current.json from chaithubk/medtech-telemetry-contract@${TAG}
+          - Updated contracts/VITALS_CONTRACT_VERSION.txt to ${TAG}
+          - Bumped __version__ in src/__init__.py to ${TAG}"
+          git push --force "https://x-access-token:${{ secrets.CD_PAT }}@github.com/${{ github.repository }}.git" "${BRANCH}"
 
-          gh pr create \
-            --title "chore: vendor telemetry contract ${TAG}" \
-            --body "## Automated contract update
+      - name: Create or update PR
+        if: steps.diff.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.CD_PAT }}
+          branch: chore/vendor-telemetry-contract-${{ steps.tag.outputs.tag }}
+          title: "chore: vendor telemetry contract ${{ steps.tag.outputs.tag }}"
+          body: |
+            ## Automated contract update
 
-          Vendored schema from [\`chaithubk/medtech-telemetry-contract@${TAG}\`](https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/${TAG}).
+            Vendored schema from [`chaithubk/medtech-telemetry-contract@${{ steps.tag.outputs.tag }}`](https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/${{ steps.tag.outputs.tag }}).
 
-          ### Checklist
-          - [ ] Review schema diff in \`contracts/vitals/v2.0.json\`
-          - [ ] Verify CI passes (schema validation test must pass)
-          - [ ] Update parser / fixtures if any fields changed
-          - [ ] Merge when green" \
-            --base main \
-            --head "${BRANCH}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            ### Checklist
+            - [ ] Review schema diff in `contracts/vitals/current.json`
+            - [ ] Verify CI passes (schema validation test must pass)
+            - [ ] Update parser / fixtures if any fields changed
+            - [ ] Merge when green
+          commit-message: "chore: vendor telemetry contract ${{ steps.tag.outputs.tag }} and bump version"
+          base: main
