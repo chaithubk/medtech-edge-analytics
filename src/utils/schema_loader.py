@@ -1,28 +1,33 @@
 """Runtime contract schema path resolution for vitals telemetry.
 
-At runtime the v2 vitals JSON schema is loaded from a canonical on-device
+At runtime the vitals JSON schema is loaded from the canonical on-device
 path so that the Yocto image is the single source of truth for the contract.
+
+The canonical schema file is ``vitals.schema.json`` (not a version-named file).
+Its content is pinned by the ``contracts/VITALS_CONTRACT_VERSION.txt`` tag and
+``contracts/vitals/vitals.schema-manifest.yml`` commit SHA.
 
 Resolution order:
 1. ``MEDTECH_VITALS_SCHEMA`` environment variable (if set and non-empty).
-2. Default Yocto rootfs path: ``/usr/share/medtech/contracts/vitals/current.json``.
+2. Default Yocto rootfs path: ``/usr/share/medtech/contracts/vitals/vitals.schema.json``.
 
 If the resolved file is missing or unreadable the service must **hard-fail**
 (raise ``FileNotFoundError``) so that systemd / the process supervisor can
 report the failure and stop the unit — a system running without a contract
 file is not in a defined state.
 
-For tests and CI the vendored copy at ``contracts/vitals/v2.0.json`` can be
-injected via the environment variable without changing any code paths:
+For tests and CI the vendored copy at ``contracts/vitals/vitals.schema.json``
+can be injected via the environment variable without changing any code paths:
 
-    MEDTECH_VITALS_SCHEMA=contracts/vitals/v2.0.json pytest ...
+    MEDTECH_VITALS_SCHEMA=contracts/vitals/vitals.schema.json pytest ...
 """
 
 import os
 import pathlib
 
 # Default canonical location on the Yocto rootfs.
-_DEFAULT_SCHEMA_PATH = "/usr/share/medtech/contracts/vitals/current.json"
+# The Yocto medtech-telemetry-contract recipe installs the schema to this path.
+_DEFAULT_SCHEMA_PATH = "/usr/share/medtech/contracts/vitals/vitals.schema.json"
 
 # Environment variable that overrides the default path.
 _ENV_VAR = "MEDTECH_VITALS_SCHEMA"

@@ -20,7 +20,9 @@ from src.utils.schema_loader import _DEFAULT_SCHEMA_PATH, _ENV_VAR, resolve_sche
 # Helpers
 # ---------------------------------------------------------------------------
 
-_VENDORED_SCHEMA = pathlib.Path(__file__).parent.parent / "contracts" / "vitals" / "v2.0.json"
+_VENDORED_SCHEMA = (
+    pathlib.Path(__file__).parent.parent / "contracts" / "vitals" / "vitals.schema.json"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +57,7 @@ class TestResolveSchemaPathEnvVar:
     def test_empty_env_var_falls_back_to_default(self, monkeypatch, tmp_path):
         """An empty MEDTECH_VITALS_SCHEMA string is treated as unset."""
         # Point default path to a real file so the fallback succeeds.
-        default_file = tmp_path / "current.json"
+        default_file = tmp_path / "vitals.schema.json"
         default_file.write_text("{}")
         monkeypatch.setenv(_ENV_VAR, "")
 
@@ -76,7 +78,7 @@ class TestResolveSchemaPathDefault:
     def test_default_path_returned_when_env_absent(self, tmp_path, monkeypatch):
         """When env var is not set the default rootfs path is used."""
         monkeypatch.delenv(_ENV_VAR, raising=False)
-        default_file = tmp_path / "current.json"
+        default_file = tmp_path / "vitals.schema.json"
         default_file.write_text("{}")
 
         with patch("src.utils.schema_loader._DEFAULT_SCHEMA_PATH", str(default_file)):
@@ -130,7 +132,7 @@ class TestResolveSchemaPathFailure:
 
         with patch(
             "src.utils.schema_loader._DEFAULT_SCHEMA_PATH",
-            "/nonexistent/path/current.json",
+            "/nonexistent/path/vitals.schema.json",
         ):
             with pytest.raises(FileNotFoundError):
                 resolve_schema_path()
@@ -160,7 +162,7 @@ class TestMainHardFailOnMissingSchema:
 
     def test_main_does_not_exit_when_schema_present(self, tmp_path, monkeypatch):
         """main() must NOT call sys.exit when the schema file exists."""
-        schema_file = tmp_path / "current.json"
+        schema_file = tmp_path / "vitals.schema.json"
         schema_file.write_text("{}")
         monkeypatch.setenv(_ENV_VAR, str(schema_file))
 

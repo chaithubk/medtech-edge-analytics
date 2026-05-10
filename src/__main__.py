@@ -16,10 +16,10 @@ from src.utils.config import Config
 from src.utils.logger import setup_logger
 from src.utils.schema_loader import resolve_schema_path
 
-# Scenario vital presets (v2 payload format)
+# Scenario vital presets (v2.1.1 SemVer payload format)
 _SCENARIOS = {
     "healthy": {
-        "version": "2.0",
+        "version": "2.1.1",
         "patient_id": "demo-healthy-001",
         "scenario": "healthy",
         "scenario_stage": "healthy",
@@ -31,6 +31,8 @@ _SCENARIOS = {
         "respiratory_rate": 16.0,
         "wbc": 7.5,
         "lactate": 0.8,
+        "creatinine": 0.9,
+        "altered_mentation": False,
         "sirs_score": 0,
         "qsofa_score": 0,
         "sepsis_stage": "none",
@@ -39,7 +41,7 @@ _SCENARIOS = {
         "source": "simulator",
     },
     "sepsis": {
-        "version": "2.0",
+        "version": "2.1.1",
         "patient_id": "demo-sepsis-001",
         "scenario": "sepsis",
         "scenario_stage": "sepsis_onset",
@@ -51,6 +53,8 @@ _SCENARIOS = {
         "respiratory_rate": 26.0,
         "wbc": 14.5,
         "lactate": 3.2,
+        "creatinine": 2.2,
+        "altered_mentation": True,
         "sirs_score": 3,
         "qsofa_score": 2,
         "sepsis_stage": "sepsis",
@@ -59,7 +63,7 @@ _SCENARIOS = {
         "source": "simulator",
     },
     "critical": {
-        "version": "2.0",
+        "version": "2.1.1",
         "patient_id": "demo-critical-001",
         "scenario": "critical",
         "scenario_stage": "septic_shock",
@@ -71,6 +75,8 @@ _SCENARIOS = {
         "respiratory_rate": 34.0,
         "wbc": 18.0,
         "lactate": 5.5,
+        "creatinine": 4.1,
+        "altered_mentation": True,
         "sirs_score": 4,
         "qsofa_score": 3,
         "sepsis_stage": "septic_shock",

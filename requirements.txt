@@ -2,6 +2,7 @@
 paho-mqtt>=1.6.1,<2.0.0
 numpy>=1.24.0,<2.0.0
 tensorflow>=2.15.0
+pyyaml>=6.0
 
 # For development/testing (optional in prod)
 pytest==7.4.0

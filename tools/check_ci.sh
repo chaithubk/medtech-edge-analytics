@@ -45,6 +45,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Activate virtualenv if present so dev tools (black, isort, …) are on PATH
+_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "${_REPO_ROOT}/.venv/bin/activate" ]]; then
+  # shellcheck source=/dev/null
+  source "${_REPO_ROOT}/.venv/bin/activate"
+fi
+
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo -e "${RED}Missing required command: $1${NC}"

@@ -25,9 +25,6 @@ COPY src/ src/
 COPY models/ models/
 COPY contracts/ /usr/share/medtech/contracts/
 
-# Expose the current contract at the canonical path expected by schema_loader
-RUN ln -s /usr/share/medtech/contracts/vitals/v2.0.json \
-          /usr/share/medtech/contracts/vitals/current.json
 
 # Set environment variables
 ENV PYTHONPATH=/app/src:$PYTHONPATH
