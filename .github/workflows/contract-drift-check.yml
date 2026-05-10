@@ -1,61 +1,101 @@
 name: Contract Drift Check
 
 on:
+  repository_dispatch:
+    types: [contract-release-published]
   schedule:
-    # Runs daily at 07:00 UTC
-    - cron: '0 7 * * *'
+    # Fallback only; primary trigger is release-driven dispatch
+    - cron: '0 8 * * 1'
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
-  drift-check:
-    name: Check for upstream contract updates
+  resolve:
+    name: Resolve target contract tag
     runs-on: ubuntu-latest
+    outputs:
+      drift: ${{ steps.compare.outputs.drift }}
+      pinned: ${{ steps.pinned.outputs.version }}
+      latest: ${{ steps.latest.outputs.latest }}
+      target: ${{ steps.target.outputs.tag }}
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Read pinned contract version
         id: pinned
         run: |
           VERSION=$(cat contracts/VITALS_CONTRACT_VERSION.txt | tr -d '[:space:]')
-          echo "pinned_tag=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Pinned contract version: ${VERSION}"
+
+          # Informational context from vendored manifest
+          if [ -f contracts/vitals/vitals.schema-manifest.yml ]; then
+            python3 - <<'PYEOF'
+try:
+    import yaml
+    m = yaml.safe_load(open("contracts/vitals/vitals.schema-manifest.yml"))
+    print(f"  Pinned commit : {m.get('pinned_commit', 'unknown')}")
+    print(f"  Compat class  : {m.get('compatibility_class', 'unknown')}")
+    print(f"  Vendored at   : {m.get('vendored_at', 'unknown')}")
+except Exception as e:
+    print(f"  (could not read manifest: {e})")
+PYEOF
+          fi
 
       - name: Fetch latest tag from contract repo
         id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          LATEST=$(curl -s \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/chaithubk/medtech-telemetry-contract/tags" \
-            | python3 -c "import sys,json; tags=json.load(sys.stdin); print(tags[0]['name'] if tags else '')")
-          echo "latest_tag=${LATEST}" >> "$GITHUB_OUTPUT"
-          echo "Latest upstream contract tag: ${LATEST}"
+          LATEST=$(gh api repos/chaithubk/medtech-telemetry-contract/tags \
+            --jq '.[0].name' 2>/dev/null || echo "")
+          if [ -z "${LATEST}" ]; then
+            echo "::error::Could not fetch tags from chaithubk/medtech-telemetry-contract."
+            exit 1
+          fi
+          echo "latest=${LATEST}" >> "$GITHUB_OUTPUT"
+          echo "Latest contract tag: ${LATEST}"
+
+      - name: Resolve target tag (dispatch first, otherwise latest)
+        id: target
+        env:
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          LATEST: ${{ steps.latest.outputs.latest }}
+        run: |
+          if [ -n "${DISPATCH_TAG}" ]; then
+            echo "tag=${DISPATCH_TAG}" >> "$GITHUB_OUTPUT"
+            echo "Using release-dispatch target tag: ${DISPATCH_TAG}"
+          else
+            echo "tag=${LATEST}" >> "$GITHUB_OUTPUT"
+            echo "Using latest tag from API: ${LATEST}"
+          fi
 
       - name: Compare versions
+        id: compare
+        env:
+          PINNED: ${{ steps.pinned.outputs.version }}
+          TARGET: ${{ steps.target.outputs.tag }}
         run: |
-          PINNED="${{ steps.pinned.outputs.pinned_tag }}"
-          LATEST="${{ steps.latest.outputs.latest_tag }}"
-
-          if [ -z "${LATEST}" ]; then
-            echo "::warning::Could not fetch tags from chaithubk/medtech-telemetry-contract. Skipping drift check."
-            exit 0
+          echo "Pinned : ${PINNED}"
+          echo "Target : ${TARGET}"
+          if [ "${PINNED}" = "${TARGET}" ]; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "Contract is up to date (pinned == target: ${PINNED})."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "Contract drift detected: ${PINNED} -> ${TARGET}"
+            echo "An automated vendoring PR will be created for tag ${TARGET}."
           fi
 
-          if [ "${PINNED}" == "${LATEST}" ]; then
-            echo "Contract is up to date: ${PINNED}"
-            exit 0
-          fi
-
-          echo "::error::New telemetry contract tag available: ${LATEST} (currently pinned: ${PINNED})."
-          echo ""
-          echo "To update:"
-          echo "  1. Run the 'Vendor Telemetry Contract' workflow with tag '${LATEST}'."
-          echo "  2. Review and merge the resulting PR."
-          echo ""
-          echo "Contract repo: https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/${LATEST}"
-          exit 1
+  auto-vendor:
+    name: Auto-create contract update PR
+    needs: resolve
+    if: needs.resolve.outputs.drift == 'true'
+    uses: ./.github/workflows/vendor-telemetry-contract.yml
+    with:
+      tag: ${{ needs.resolve.outputs.target }}
+    secrets: inherit

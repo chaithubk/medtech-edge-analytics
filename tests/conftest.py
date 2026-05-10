@@ -10,7 +10,7 @@ import pytest
 def sample_vital():
     """Sample v2 vital reading (healthy patient)."""
     return {
-        "version": "2.0",
+        "version": "2.1.1",
         "patient_id": "patient-001",
         "scenario": "healthy",
         "scenario_stage": "healthy",
@@ -23,6 +23,8 @@ def sample_vital():
         "respiratory_rate": 16.0,
         "wbc": 7.5,
         "lactate": 0.9,
+        "creatinine": 1.0,
+        "altered_mentation": False,
         "sirs_score": 0,
         "qsofa_score": 0,
         "sepsis_stage": "none",
@@ -36,7 +38,7 @@ def sample_vital():
 def sample_vital_unhealthy():
     """Unhealthy v2 vital (sepsis indicators)."""
     return {
-        "version": "2.0",
+        "version": "2.1.1",
         "patient_id": "patient-002",
         "scenario": "sepsis",
         "scenario_stage": "sepsis_onset",
@@ -49,6 +51,8 @@ def sample_vital_unhealthy():
         "respiratory_rate": 26.0,  # Elevated
         "wbc": 14.5,  # Elevated
         "lactate": 3.2,  # Elevated
+        "creatinine": 1.0,
+        "altered_mentation": False,
         "sirs_score": 3,
         "qsofa_score": 2,
         "sepsis_stage": "sepsis",
@@ -67,7 +71,7 @@ def vital_sequence():
     for i in range(10):
         vitals.append(
             {
-                "version": "2.0",
+                "version": "2.1.1",
                 "patient_id": "patient-001",
                 "scenario": "healthy",
                 "scenario_stage": "healthy",
@@ -80,6 +84,8 @@ def vital_sequence():
                 "respiratory_rate": 16.0 + rng.normal(0, 1),
                 "wbc": 7.5 + rng.normal(0, 0.5),
                 "lactate": 0.9 + rng.normal(0, 0.1),
+                "creatinine": 1.0,
+                "altered_mentation": False,
                 "sirs_score": 0,
                 "qsofa_score": 0,
                 "sepsis_stage": "none",

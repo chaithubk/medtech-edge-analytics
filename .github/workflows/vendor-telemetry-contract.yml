@@ -1,14 +1,22 @@
 name: Vendor Telemetry Contract
 
 on:
+  repository_dispatch:
+    types: [contract-release-published]
   workflow_dispatch:
     inputs:
       tag:
         description: >
-          Tag to vendor from chaithubk/medtech-telemetry-contract
-          (leave empty to use the latest tag).
+          Contract repo tag to vendor (e.g. v2.1.0).
+          Leave blank to use the latest published tag automatically.
         required: false
         default: ''
+  workflow_call:
+    inputs:
+      tag:
+        description: Contract repo tag to vendor.
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -25,33 +33,153 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve target tag
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Resolve target tag and commit SHA
         id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag || github.event.inputs.tag || github.event.client_payload.tag }}
         run: |
-          TAG="${{ github.event.inputs.tag }}"
+          TAG="${INPUT_TAG}"
           if [ -z "${TAG}" ]; then
-            TAG=$(curl -s \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/chaithubk/medtech-telemetry-contract/tags" \
-              | python3 -c "import sys,json; tags=json.load(sys.stdin); print(tags[0]['name'] if tags else '')")
+            TAG=$(python3 - <<'PYEOF'
+import json
+import urllib.request
+
+headers = {
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+}
+
+def fetch(url: str) -> dict:
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req) as resp:
+        return json.load(resp)
+
+try:
+    rel = fetch("https://api.github.com/repos/chaithubk/medtech-telemetry-contract/releases/latest")
+    tag_name = rel.get("tag_name")
+    if tag_name and tag_name != "null":
+        print(tag_name)
+    else:
+        tags = fetch("https://api.github.com/repos/chaithubk/medtech-telemetry-contract/tags")
+        print(tags[0]["name"] if tags else "")
+except Exception:
+    print("")
+PYEOF
+)
           fi
           if [ -z "${TAG}" ]; then
             echo "::error::Could not resolve a target tag."
             exit 1
           fi
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "Vendoring contract at tag: ${TAG}"
+          # Resolve the exact commit SHA for the tag (immutable reference).
+          export TAG
+          COMMIT=$(python3 - <<'PYEOF'
+import json
+import os
+import urllib.request
 
-      - name: Download schema at target tag
+tag = os.environ["TAG"]
+api = "https://api.github.com/repos/chaithubk/medtech-telemetry-contract"
+headers = {
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+}
+
+def fetch(url: str) -> dict:
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req) as resp:
+        return json.load(resp)
+
+ref = fetch(f"{api}/git/ref/tags/{tag}")
+obj = ref.get("object", {})
+sha = obj.get("sha", "")
+typ = obj.get("type", "")
+
+# Annotated tag: dereference to the commit object.
+if typ == "tag" and sha:
+    tag_obj = fetch(f"{api}/git/tags/{sha}")
+    sha = tag_obj.get("object", {}).get("sha", sha)
+
+print(sha)
+PYEOF
+)
+          if [ -z "${COMMIT}" ]; then
+            echo "::error::Could not resolve commit SHA for tag ${TAG}."
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "commit=${COMMIT}" >> "$GITHUB_OUTPUT"
+          echo "Vendoring contract at tag: ${TAG} (commit: ${COMMIT})"
+
+      - name: Download canonical schema and manifest at target tag
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
-          SCHEMA_URL="https://raw.githubusercontent.com/chaithubk/medtech-telemetry-contract/${TAG}/schemas/vitals/v2.0.json"
-          echo "Fetching: ${SCHEMA_URL}"
+          BASE_URL="https://raw.githubusercontent.com/chaithubk/medtech-telemetry-contract/${TAG}"
           mkdir -p contracts/vitals
-          curl -fsSL "${SCHEMA_URL}" -o contracts/vitals/v2.0.json
+
+          # Canonical schema path (stable across all contract revisions)
+          echo "Fetching canonical schema: ${BASE_URL}/schemas/vitals/vitals.schema.json"
+          curl -fsSL "${BASE_URL}/schemas/vitals/vitals.schema.json" \
+               -o contracts/vitals/vitals.schema.json
+
+          # Contract manifest (governance metadata — breaking changes, compat class)
+          echo "Fetching contract manifest: ${BASE_URL}/schemas/vitals/vitals.schema-manifest.yml"
+          curl -fsSL "${BASE_URL}/schemas/vitals/vitals.schema-manifest.yml" \
+               -o contracts/vitals/vitals.schema-manifest.yml || \
+            echo "::warning::Manifest not found upstream — keeping current vendored copy."
+
           echo "${TAG}" > contracts/VITALS_CONTRACT_VERSION.txt
-          echo "Schema downloaded and version pin updated."
+          echo "Schema and manifest downloaded; version pin updated to ${TAG}."
+
+      - name: Stamp commit SHA into manifest
+        run: |
+          COMMIT="${{ steps.tag.outputs.commit }}"
+          TAG="${{ steps.tag.outputs.tag }}"
+          if [ -f contracts/vitals/vitals.schema-manifest.yml ] && [ -n "${COMMIT}" ]; then
+            # Update pinned_commit in the manifest so offline builds are reproducible.
+            python3 - <<'PYEOF'
+import re, pathlib, os
+manifest_path = pathlib.Path("contracts/vitals/vitals.schema-manifest.yml")
+content = manifest_path.read_text()
+commit = os.environ["COMMIT"]
+tag    = os.environ["TAG"]
+# Replace or add pinned_commit line
+if "pinned_commit:" in content:
+    content = re.sub(r"pinned_commit:.*", f"pinned_commit: \"{commit}\"", content)
+else:
+    content += f"\npinned_commit: \"{commit}\"\n"
+# Replace or add pinned_tag line
+if "pinned_tag:" in content:
+    content = re.sub(r"pinned_tag:.*", f"pinned_tag: {tag}", content)
+manifest_path.write_text(content)
+print(f"Stamped commit {commit} and tag {tag} into manifest.")
+PYEOF
+          fi
+        env:
+          COMMIT: ${{ steps.tag.outputs.commit }}
+          TAG: ${{ steps.tag.outputs.tag }}
+
+      - name: Read compatibility class from manifest
+        id: compat
+        run: |
+          COMPAT_CLASS="UNKNOWN"
+          if [ -f contracts/vitals/vitals.schema-manifest.yml ]; then
+            COMPAT_CLASS=$(python3 -c "
+import sys
+try:
+    import yaml
+    m = yaml.safe_load(open('contracts/vitals/vitals.schema-manifest.yml'))
+    print(m.get('compatibility_class', 'UNKNOWN'))
+except Exception:
+    print('UNKNOWN')
+")
+          fi
+          echo "compat_class=${COMPAT_CLASS}" >> "$GITHUB_OUTPUT"
+          echo "Compatibility class: ${COMPAT_CLASS}"
 
       - name: Check for changes
         id: diff
@@ -68,29 +196,85 @@ jobs:
         if: steps.diff.outputs.has_changes == 'true'
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
+          COMMIT="${{ steps.tag.outputs.commit }}"
+          COMPAT="${{ steps.compat.outputs.compat_class }}"
           BRANCH="chore/vendor-telemetry-contract-${TAG}"
+
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "${BRANCH}"
+          git checkout -B "${BRANCH}"
           git add contracts/
           git commit -m "chore: vendor telemetry contract ${TAG}
 
-          - Updated contracts/vitals/v2.0.json from chaithubk/medtech-telemetry-contract@${TAG}
+          - Updated contracts/vitals/vitals.schema.json from canonical path
+          - Updated contracts/vitals/vitals.schema-manifest.yml
+          - Pinned to tag ${TAG} (commit ${COMMIT})
+          - Compatibility class: ${COMPAT}
           - Updated contracts/VITALS_CONTRACT_VERSION.txt to ${TAG}"
-          git push origin "${BRANCH}"
+          git push --force-with-lease origin "${BRANCH}"
 
-          gh pr create \
-            --title "chore: vendor telemetry contract ${TAG}" \
-            --body "## Automated contract update
+          # Build the merge-policy note based on compatibility class
+          case "${COMPAT}" in
+            PATCH)
+              MERGE_POLICY="**PATCH**: Tests must pass. May be auto-merged."
+              COMPAT_LABEL="patch"
+              ;;
+            MINOR)
+              MERGE_POLICY="**MINOR**: Human review required before merging."
+              COMPAT_LABEL="minor"
+              ;;
+            BREAKING|*)
+              MERGE_POLICY="**BREAKING / UNKNOWN**: Human review + migration checklist required. Do NOT auto-merge."
+              COMPAT_LABEL="breaking"
+              ;;
+          esac
 
-          Vendored schema from [\`chaithubk/medtech-telemetry-contract@${TAG}\`](https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/${TAG}).
-
-          ### Checklist
-          - [ ] Review schema diff in \`contracts/vitals/v2.0.json\`
-          - [ ] Verify CI passes (schema validation test must pass)
-          - [ ] Update parser / fixtures if any fields changed
-          - [ ] Merge when green" \
+          PR_NUMBER=$(gh pr list \
+            --head "${BRANCH}" \
             --base main \
-            --head "${BRANCH}"
+            --state open \
+            --json number \
+            --jq '.[0].number')
+
+          PR_BODY="## Automated contract update
+
+Vendored schema from [\`chaithubk/medtech-telemetry-contract@${TAG}\`](https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/${TAG}).
+
+| Field | Value |
+|---|---|
+| Tag | \`${TAG}\` |
+| Commit SHA | \`${COMMIT}\` |
+| Compatibility class | \`${COMPAT}\` |
+
+### Merge policy
+${MERGE_POLICY}
+
+### Review checklist
+- [ ] Review schema diff in \`contracts/vitals/vitals.schema.json\`
+- [ ] Review manifest diff in \`contracts/vitals/vitals.schema-manifest.yml\`
+- [ ] Verify CI passes (schema validation and contract evolution tests must pass)
+- [ ] If MINOR/BREAKING: update parser, fixtures, or add adapter layer as needed
+- [ ] If BREAKING: attach completed migration checklist before merging"
+
+          if [ -n "${PR_NUMBER}" ] && [ "${PR_NUMBER}" != "null" ]; then
+            echo "PR #${PR_NUMBER} already exists for ${BRANCH}; updating title/body."
+            gh pr edit "${PR_NUMBER}" \
+              --title "chore: vendor telemetry contract ${TAG} [${COMPAT}]" \
+              --body "${PR_BODY}"
+            gh pr edit "${PR_NUMBER}" --add-label "contract-update" --add-label "compat:${COMPAT_LABEL}" || true
+          else
+            gh pr create \
+              --title "chore: vendor telemetry contract ${TAG} [${COMPAT}]" \
+              --body "${PR_BODY}" \
+              --base main \
+              --head "${BRANCH}"
+            CREATED_PR_NUMBER=$(gh pr list \
+              --head "${BRANCH}" \
+              --base main \
+              --state open \
+              --json number \
+              --jq '.[0].number')
+            gh pr edit "${CREATED_PR_NUMBER}" --add-label "contract-update" --add-label "compat:${COMPAT_LABEL}" || true
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

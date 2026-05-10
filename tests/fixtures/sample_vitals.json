@@ -1,6 +1,6 @@
 [
   {
-    "version": "2.0",
+    "version": "2.1.1",
     "patient_id": "patient-fixture-001",
     "scenario": "healthy",
     "scenario_stage": "healthy",
@@ -18,10 +18,12 @@
     "sepsis_stage": "none",
     "sepsis_onset_ts": null,
     "quality": "good",
-    "source": "simulator"
+    "source": "simulator",
+    "creatinine": 0.9,
+    "altered_mentation": false
   },
   {
-    "version": "2.0",
+    "version": "2.1.1",
     "patient_id": "patient-fixture-001",
     "scenario": "healthy",
     "scenario_stage": "healthy",
@@ -39,10 +41,12 @@
     "sepsis_stage": "none",
     "sepsis_onset_ts": null,
     "quality": "good",
-    "source": "simulator"
+    "source": "simulator",
+    "creatinine": 0.9,
+    "altered_mentation": false
   },
   {
-    "version": "2.0",
+    "version": "2.1.1",
     "patient_id": "patient-fixture-001",
     "scenario": "sepsis",
     "scenario_stage": "sepsis_onset",
@@ -60,6 +64,8 @@
     "sepsis_stage": "sepsis",
     "sepsis_onset_ts": 1712973620000,
     "quality": "degraded",
-    "source": "simulator"
+    "source": "simulator",
+    "creatinine": 2.1,
+    "altered_mentation": true
   }
 ]

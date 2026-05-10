@@ -1,0 +1,139 @@
+# Vitals Schema Governance Manifest
+# This file documents version info, breaking changes, and compatibility—separate from the schema itself.
+# The schema (vitals.schema.json) remains clean and focused on payload validation.
+
+# ============================================================================
+# VERSION & CONTRACT METADATA
+# ============================================================================
+domain: vitals
+schema_file: vitals.schema.json
+current_version: "2.1.1"
+release_date: "2026-05-10"
+compatibility_class: PATCH
+schema_stability: stable
+contract_status: production
+
+# ============================================================================
+# BREAKING CHANGES (from previous versions)
+# ============================================================================
+breaking_changes_from:
+  "2.1.0": []
+  "2.0.0":
+    - type: field-added-required
+      field: creatinine
+      description: Serum creatinine (mg/dL) - organ dysfunction marker for sepsis
+      breaking_since: "2.1.0"
+      migration: |
+        Publishers must compute or provide creatinine value.
+        Consumers receiving 2.0.0 payloads will fail validation against 2.1.0+ schema.
+        Plan payload version negotiation or implement dual-schema validation.
+
+    - type: field-added-required
+      field: altered_mentation
+      description: Boolean indicating altered mental status (GCS < 15)
+      breaking_since: "2.1.0"
+      migration: |
+        Publishers must compute altered_mentation from Glasgow Coma Scale.
+        Consumers must handle both 2.0.0 (missing field) and 2.1.0+ (required field).
+        Implement graceful degradation or version negotiation.
+
+# ============================================================================
+# DEPRECATED FIELDS (for future migrations)
+# ============================================================================
+deprecated_fields: []
+
+# ============================================================================
+# CONSUMER COMPATIBILITY MATRIX
+# ============================================================================
+compatibility_matrix:
+  current_version: "2.1.1"
+  payload_version_field: "string (SemVer format)"
+  
+  can_accept_older_payloads:
+    "2.1.0": false
+    "2.0.0": false
+    reason: |
+      Schema version 2.1.1 requires fields that did not exist in earlier versions.
+      Consumers MUST validate payloads against the schema version specified in payload.version field.
+      Do NOT reuse schemas—always load version-specific schema from Git.
+
+  older_consumers_can_accept:
+    "2.1.0-consumers": true
+    "2.0.0-consumers": false
+    reason: |
+      2.0.0 consumers will fail validation on new required fields (creatinine, altered_mentation).
+      2.1.0 consumers can accept 2.1.1 payloads (only PATCH changes—documentation/governance).
+
+# ============================================================================
+# UPGRADE PATHS
+# ============================================================================
+upgrade_paths:
+  "2.0.0→2.1.1": "BREAKING - Requires code changes (new fields: creatinine, altered_mentation)"
+  "2.1.0→2.1.1": "COMPATIBLE - Patch release (documentation-only, no schema changes)"
+  
+# ============================================================================
+# CONSUMER SAFETY CHECKLIST
+# ============================================================================
+consumer_safety_check:
+  steps:
+    - "1. Extract payload.version from incoming message (e.g., '2.1.1')"
+    - "2. Load schema for that version from Git tag: git show v{VERSION}:schemas/vitals/vitals.schema.json"
+    - "3. Validate payload against version-specific schema"
+    - "4. Consult this manifest breaking_changes_from section to understand breaking changes from your current version"
+    - "5. Follow migration guides if upgrading versions"
+  
+  validation_pattern: |
+    def validate_vitals(payload_json):
+        payload = json.load(payload_json)
+        version = payload['version']  # e.g., "2.1.1"
+        
+        # Load exact schema version from Git
+        schema = git_show(f"v{version}:schemas/vitals/vitals.schema.json")
+        
+        # Validate payload against version-specific schema
+        ajv.validate(payload, schema)
+        
+        # Check if upgrade is needed and safe
+        manifest = load_manifest()
+        if can_upgrade_safely(current_version, version, manifest):
+            upgrade_payload_parser(version)
+
+# ============================================================================
+# MULTI-DOMAIN GOVERNANCE (Scalability Planning)
+# ============================================================================
+multi_domain_governance:
+  domain: vitals
+  schema_owner: physiological-data-contract-team
+  domain_changelog: schemas/vitals/DOMAIN-CHANGELOG.md
+  
+  multi_domain_strategy: |
+    Future domains will follow same pattern:
+    - schemas/predictions/predictions.schema.json
+    - schemas/labs/labs.schema.json
+    - schemas/alerts/alerts.schema.json
+    
+    Each domain has:
+    - Isolated schema file (mutable at main branch, immutable by Git tag)
+    - Domain-specific changelog (DOMAIN-CHANGELOG.md)
+    - This governance manifest (SCHEMA-MANIFEST.yml)
+    
+    Global VERSION file (single integer) is incremented on ANY domain change.
+    Unified CHANGELOG.md aggregates all domain releases.
+    
+    CI/CD validates each changed domain independently:
+      python3 scripts/compatibility_guard.py --domain vitals --base-tag v2.1.0
+      python3 scripts/compatibility_guard.py --domain predictions --base-tag v2.1.0
+      etc.
+
+# ============================================================================
+# REFERENCES
+# ============================================================================
+references:
+  - "Schema Design Strategy: docs/schema-design-strategy.md"
+  - "Changelog: CHANGELOG.md"
+  - "Contract Lifecycle: docs/contract-lifecycle.md"
+  - "JSON Schema Spec: https://json-schema.org/draft-07/"
+
+pinned_tag: v2.1.1
+
+pinned_commit: "7f71ce41544b56d70ca4c94971730cfce1331e71"

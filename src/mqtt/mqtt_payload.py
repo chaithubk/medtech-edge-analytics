@@ -1,20 +1,31 @@
 """MQTT payload parsing and serialization for vital signs and predictions.
 
-Telemetry Contract: v2.0
-This module enforces the v2 MQTT payload schema published by medtech-vitals-publisher.
-Payloads must carry an explicit ``version`` field equal to ``"2.0"`` and must not
-contain fields outside the contract's property set (``additionalProperties: false``).
+Telemetry Contract: v2.1.1 (pinned by tag/commit in vendored manifest).
+
+Version handling (SemVer):
+- Payloads must carry ``version`` in SemVer format: ``"MAJOR.MINOR.PATCH"``.
+- MAJOR must equal 2 for this consumer build (different MAJOR = BREAKING, drop).
+- Any MINOR or PATCH within MAJOR 2 is accepted (backward-compatible additions).
+- Legacy two-part ``"2.0"`` is accepted with a deprecation warning (migration window).
+
+Forward-compatibility:
+- Unknown fields from newer contract revisions are stripped with a WARNING rather
+  than causing a hard rejection, so the pipeline keeps processing when a producer
+  upgrades to a MINOR contract release before the consumer is updated.
+- All fields required by the pinned v2.1.1 contract must still be present.
 """
 
 import json
 from typing import Any, Dict
 
+from src.utils.contract_compat import PINNED_CONTRACT_VERSION, is_compatible_version
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Enforced schema version — messages with any other value are dropped.
-VITALS_SCHEMA_VERSION = "2.0"
+# Pinned contract version for this build.  Payloads with the same MAJOR version
+# (e.g. '2.2.0', '2.1.2') are accepted; different MAJOR is treated as BREAKING.
+VITALS_SCHEMA_VERSION = PINNED_CONTRACT_VERSION  # '2.1.1'
 
 # Required fields for v2 vital signs.
 # sepsis_onset_ts is required by the contract but nullable (None = onset not yet determined).
@@ -32,6 +43,8 @@ _VITAL_REQUIRED_FIELDS = [
     "respiratory_rate",
     "wbc",
     "lactate",
+    "creatinine",
+    "altered_mentation",
     "sirs_score",
     "qsofa_score",
     "sepsis_stage",
@@ -53,6 +66,7 @@ _VITAL_RANGES: Dict[str, tuple] = {
     "respiratory_rate": (5.0, 60.0),
     "wbc": (0.5, 100.0),
     "lactate": (0.1, 30.0),
+    "creatinine": (0.1, 30.0),
     "sirs_score": (0.0, 4.0),
     "qsofa_score": (0.0, 3.0),
 }
@@ -70,10 +84,11 @@ _PREDICTION_REQUIRED_FIELDS = [
 def parse_vital(payload_str: str) -> dict:
     """Parse and validate a v2 JSON vital signs payload string.
 
-    Enforces the strict v2 contract:
-    - ``version`` must equal ``"2.0"`` exactly (string); missing or any other
-      value causes immediate rejection.
-    - No fields outside the contract's property set are permitted.
+        Enforces the pinned v2 contract with SemVer compatibility rules:
+        - ``version`` must be compatible with pinned ``2.1.1`` (same MAJOR).
+            Different MAJOR values are rejected.
+        - Unknown fields are stripped with a warning (forward compatibility for
+            MINOR/PATCH producer upgrades).
     - All required fields must be present.
     - ``sepsis_onset_ts`` must be ``None`` or an integer epoch-ms value.
     - Numeric vitals must fall within the expected clinical ranges.
@@ -85,9 +100,9 @@ def parse_vital(payload_str: str) -> dict:
         Validated vital signs dict.
 
     Raises:
-        ValueError: If JSON is invalid, version is wrong, unknown fields are
-            present, required fields are missing, ``sepsis_onset_ts`` has an
-            invalid type, or numeric values are out of the expected clinical range.
+        ValueError: If JSON is invalid, version is incompatible, required
+            fields are missing, ``sepsis_onset_ts`` has an invalid type, or
+            numeric values are out of the expected clinical range.
     """
     try:
         data: Dict[str, Any] = json.loads(payload_str)
@@ -95,25 +110,34 @@ def parse_vital(payload_str: str) -> dict:
         logger.warning("Failed to parse vital payload: %s", exc)
         raise ValueError(f"Invalid JSON payload: {exc}") from exc
 
-    # --- Strict version contract enforcement ---
-    received_version = data.get("version")
-    if received_version != VITALS_SCHEMA_VERSION:
+    # --- Version contract enforcement (SemVer-aware) ---
+    received_version: object = data.get("version")
+    if not is_compatible_version(received_version):
         logger.error(
-            "Vitals schema version mismatch: expected '%s', received '%s'. "
-            "Dropping message. Update the publisher to emit v2 payloads.",
+            "Vitals contract version incompatible: pinned='%s', received='%s'. "
+            "Dropping message. Ensure producer and consumer are on compatible contract versions.",
             VITALS_SCHEMA_VERSION,
             received_version,
         )
         raise ValueError(
-            f"Schema version mismatch: expected '{VITALS_SCHEMA_VERSION}', "
+            f"Schema version mismatch: expected compatible version with '{VITALS_SCHEMA_VERSION}', "
             f"got '{received_version}'"
         )
 
-    # --- Additional properties check (contract sets additionalProperties: false) ---
+    # --- Additional properties: warn and strip (forward-compatibility) ---
+    # Unknown fields from newer MINOR contract revisions are silently stripped so
+    # the pipeline keeps running when a producer is upgraded before this consumer.
     unknown_keys = set(data.keys()) - _VITAL_ALLOWED_FIELDS
     if unknown_keys:
-        logger.warning("Unknown fields in vital payload: %s", sorted(unknown_keys))
-        raise ValueError(f"Unknown fields not permitted by contract: {sorted(unknown_keys)}")
+        logger.warning(
+            "Payload contains %d unknown field(s) not in pinned contract v%s: %s. "
+            "Fields stripped. Producer may be on a newer MINOR contract revision.",
+            len(unknown_keys),
+            VITALS_SCHEMA_VERSION,
+            sorted(unknown_keys),
+        )
+        for key in unknown_keys:
+            del data[key]
 
     # --- Required field presence ---
     for field in _VITAL_REQUIRED_FIELDS:
@@ -128,6 +152,11 @@ def parse_vital(payload_str: str) -> dict:
         raise ValueError(
             f"'sepsis_onset_ts' must be null or an integer epoch-ms value, got: {onset_ts!r}"
         )
+
+    # altered_mentation must be boolean in v2.1+ contract.
+    if not isinstance(data.get("altered_mentation"), bool):
+        logger.warning("Invalid altered_mentation value: %r", data.get("altered_mentation"))
+        raise ValueError("'altered_mentation' must be a boolean value")
 
     # --- Numeric range validation ---
     for field, (lo, hi) in _VITAL_RANGES.items():

@@ -1,8 +1,11 @@
 """Contract schema validation tests.
 
-Validates fixture payloads against the vendored JSON Schema at
-``contracts/vitals/v2.0.json``.  Any mismatch between fixtures and the
-pinned contract is a CI failure — this test acts as the drift guard.
+Validates fixture payloads against the vendored canonical JSON Schema at
+``contracts/vitals/vitals.schema.json``.  Any mismatch between fixtures and
+the pinned contract is a CI failure — this test acts as the drift guard.
+
+Also verifies that the contract metadata files (version pin, manifest) are
+present and structurally correct.
 """
 
 import json
@@ -10,11 +13,13 @@ import pathlib
 
 import jsonschema
 import pytest
+import yaml
 
 # Paths are resolved relative to the repository root so this test works
 # regardless of the working directory.
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
-_SCHEMA_PATH = _REPO_ROOT / "contracts" / "vitals" / "v2.0.json"
+_SCHEMA_PATH = _REPO_ROOT / "contracts" / "vitals" / "vitals.schema.json"
+_MANIFEST_PATH = _REPO_ROOT / "contracts" / "vitals" / "vitals.schema-manifest.yml"
 _FIXTURES_PATH = _REPO_ROOT / "tests" / "fixtures" / "sample_vitals.json"
 
 
@@ -38,10 +43,39 @@ class TestContractSchemaV2:
         assert _SCHEMA_PATH.exists(), f"Schema file not found: {_SCHEMA_PATH}"
 
     def test_contract_version_file_exists(self) -> None:
-        """The contract version pin file must be present."""
+        """The contract version pin file must be present and contain a v-prefixed tag."""
         version_file = _REPO_ROOT / "contracts" / "VITALS_CONTRACT_VERSION.txt"
         assert version_file.exists(), f"Contract version file not found: {version_file}"
-        assert version_file.read_text().strip() == "v2.0.0"
+        assert version_file.read_text().strip() == "v2.1.1"
+
+    def test_manifest_file_exists(self) -> None:
+        """The contract manifest YAML must be present alongside the canonical schema."""
+        assert _MANIFEST_PATH.exists(), f"Contract manifest not found: {_MANIFEST_PATH}"
+
+    def test_manifest_has_required_fields(self) -> None:
+        """The manifest must contain all required governance metadata fields."""
+        manifest = yaml.safe_load(_MANIFEST_PATH.read_text())
+        # Upstream manifest currently uses current_version/release_date naming.
+        required_fields = [
+            "current_version",
+            "pinned_tag",
+            "pinned_commit",
+            "schema_file",
+            "release_date",
+            "compatibility_class",
+        ]
+        for field in required_fields:
+            assert field in manifest, f"Manifest missing required field: '{field}'"
+
+    def test_manifest_pinned_tag_matches_version_file(self) -> None:
+        """Manifest pinned_tag must match VITALS_CONTRACT_VERSION.txt."""
+        version_file = _REPO_ROOT / "contracts" / "VITALS_CONTRACT_VERSION.txt"
+        pinned_tag = version_file.read_text().strip()
+        manifest = yaml.safe_load(_MANIFEST_PATH.read_text())
+        assert manifest["pinned_tag"] == pinned_tag, (
+            f"Manifest pinned_tag '{manifest['pinned_tag']}' "
+            f"does not match VITALS_CONTRACT_VERSION.txt '{pinned_tag}'"
+        )
 
     def test_fixture_payloads_valid(self, vitals_schema: dict, sample_vitals_fixture: list) -> None:
         """Every payload in sample_vitals.json must validate against the schema."""
@@ -57,7 +91,7 @@ class TestContractSchemaV2:
     def test_healthy_payload_valid(self, vitals_schema: dict) -> None:
         """Inline healthy-patient payload must pass schema validation."""
         payload = {
-            "version": "2.0",
+            "version": "2.1.1",
             "patient_id": "patient-test-001",
             "scenario": "healthy",
             "scenario_stage": "healthy",
@@ -70,6 +104,8 @@ class TestContractSchemaV2:
             "respiratory_rate": 14.0,
             "wbc": 7.0,
             "lactate": 0.8,
+            "creatinine": 1.0,
+            "altered_mentation": False,
             "sirs_score": 0,
             "qsofa_score": 0,
             "sepsis_stage": "none",
@@ -82,7 +118,7 @@ class TestContractSchemaV2:
     def test_sepsis_payload_with_onset_ts_valid(self, vitals_schema: dict) -> None:
         """Payload with an integer sepsis_onset_ts must pass schema validation."""
         payload = {
-            "version": "2.0",
+            "version": "2.1.1",
             "patient_id": "patient-test-002",
             "scenario": "sepsis",
             "scenario_stage": "sepsis_onset",
@@ -95,6 +131,8 @@ class TestContractSchemaV2:
             "respiratory_rate": 24.0,
             "wbc": 13.5,
             "lactate": 2.8,
+            "creatinine": 1.0,
+            "altered_mentation": False,
             "sirs_score": 3,
             "qsofa_score": 2,
             "sepsis_stage": "sepsis",
@@ -119,6 +157,8 @@ class TestContractSchemaV2:
             "respiratory_rate": 14.0,
             "wbc": 7.0,
             "lactate": 0.8,
+            "creatinine": 1.0,
+            "altered_mentation": False,
             "sirs_score": 0,
             "qsofa_score": 0,
             "sepsis_stage": "none",
@@ -129,10 +169,10 @@ class TestContractSchemaV2:
         with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate(payload, vitals_schema)
 
-    def test_wrong_version_rejected(self, vitals_schema: dict) -> None:
-        """Payload with version != '2.0' must fail schema validation."""
+    def test_malformed_version_rejected(self, vitals_schema: dict) -> None:
+        """Payload with non-SemVer version format must fail schema validation."""
         payload = {
-            "version": "1.0",
+            "version": "1",
             "patient_id": "patient-test-001",
             "scenario": "healthy",
             "scenario_stage": "healthy",
@@ -145,6 +185,8 @@ class TestContractSchemaV2:
             "respiratory_rate": 14.0,
             "wbc": 7.0,
             "lactate": 0.8,
+            "creatinine": 1.0,
+            "altered_mentation": False,
             "sirs_score": 0,
             "qsofa_score": 0,
             "sepsis_stage": "none",
@@ -158,7 +200,7 @@ class TestContractSchemaV2:
     def test_invalid_scenario_stage_rejected(self, vitals_schema: dict) -> None:
         """Payload with an invalid scenario_stage enum value must fail."""
         payload = {
-            "version": "2.0",
+            "version": "2.1.1",
             "patient_id": "patient-test-001",
             "scenario": "healthy",
             "scenario_stage": "stable",  # not a valid enum value
@@ -171,6 +213,8 @@ class TestContractSchemaV2:
             "respiratory_rate": 14.0,
             "wbc": 7.0,
             "lactate": 0.8,
+            "creatinine": 1.0,
+            "altered_mentation": False,
             "sirs_score": 0,
             "qsofa_score": 0,
             "sepsis_stage": "none",
@@ -184,7 +228,7 @@ class TestContractSchemaV2:
     def test_integer_quality_rejected(self, vitals_schema: dict) -> None:
         """quality must be a string; integer value must fail."""
         payload = {
-            "version": "2.0",
+            "version": "2.1.1",
             "patient_id": "patient-test-001",
             "scenario": "healthy",
             "scenario_stage": "healthy",
@@ -197,6 +241,8 @@ class TestContractSchemaV2:
             "respiratory_rate": 14.0,
             "wbc": 7.0,
             "lactate": 0.8,
+            "creatinine": 1.0,
+            "altered_mentation": False,
             "sirs_score": 0,
             "qsofa_score": 0,
             "sepsis_stage": "none",
@@ -210,7 +256,7 @@ class TestContractSchemaV2:
     def test_additional_properties_rejected(self, vitals_schema: dict) -> None:
         """Extra fields not in the schema must be rejected (additionalProperties: false)."""
         payload = {
-            "version": "2.0",
+            "version": "2.1.1",
             "patient_id": "patient-test-001",
             "scenario": "healthy",
             "scenario_stage": "healthy",
@@ -223,6 +269,8 @@ class TestContractSchemaV2:
             "respiratory_rate": 14.0,
             "wbc": 7.0,
             "lactate": 0.8,
+            "creatinine": 1.0,
+            "altered_mentation": False,
             "sirs_score": 0,
             "qsofa_score": 0,
             "sepsis_stage": "none",

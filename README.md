@@ -9,7 +9,8 @@ This repository is for development and evaluation workflows. It is not a certifi
 ## Current Project State
 
 - Stable edge inference pipeline with MQTT ingest and MQTT prediction publishing
-- Strict v2 telemetry schema enforcement (`version == "2.0"`)
+- Contract-pinned telemetry validation (tag + commit) with canonical schema path
+- SemVer-aware runtime compatibility (`2.x.x` accepted, MAJOR mismatch rejected)
 - 20-feature model input vector with respiratory and lactate-based clinical signals
 - Local quality gates for formatting, linting, typing, and tests
 - Containerized runtime supported via Docker
@@ -103,7 +104,7 @@ Environment variables are defined in `src/utils/config.py`.
 | `BUFFER_SIZE` | `360` | Number of buffered vital samples |
 | `VITAL_INTERVAL_S` | `10` | Synthetic scenario publish interval |
 | `LOGLEVEL` | `INFO` | Logging level |
-| `MEDTECH_VITALS_SCHEMA` | `/usr/share/medtech/contracts/vitals/current.json` | Path to the vitals JSON schema on the device rootfs. Set to the vendored copy (e.g. `contracts/vitals/v2.0.json`) for local development and CI. |
+| `MEDTECH_VITALS_SCHEMA` | `/usr/share/medtech/contracts/vitals/vitals.schema.json` | Path to the canonical vitals JSON schema on the device rootfs. Set to vendored copy (`contracts/vitals/vitals.schema.json`) for local development and CI. |
 
 ### Runtime contract schema resolution
 
@@ -111,7 +112,7 @@ At startup the service resolves the vitals JSON schema through the following
 priority chain:
 
 1. `MEDTECH_VITALS_SCHEMA` environment variable (if set and non-empty).
-2. Default Yocto rootfs path: `/usr/share/medtech/contracts/vitals/current.json`.
+2. Default Yocto rootfs path: `/usr/share/medtech/contracts/vitals/vitals.schema.json`.
 
 If the resolved file is **missing or unreadable the service hard-fails** (exits
 with a non-zero code) and the systemd unit reports a failure.  This is
@@ -121,29 +122,42 @@ contract file is not a defined state.
 For local development and CI, point the env var at the vendored schema:
 
 ```bash
-export MEDTECH_VITALS_SCHEMA=contracts/vitals/v2.0.json
+export MEDTECH_VITALS_SCHEMA=contracts/vitals/vitals.schema.json
 python -m src --scenario healthy
 ```
 
-## Telemetry Contract (v2)
+## Telemetry Contract Pinning
 
 The canonical telemetry contract lives in the central contract repository:
 
 > **[chaithubk/medtech-telemetry-contract](https://github.com/chaithubk/medtech-telemetry-contract)**
-> — pinned at tag **[v2.0.0](https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/v2.0.0)**
+> — pinned at tag **[v2.1.1](https://github.com/chaithubk/medtech-telemetry-contract/releases/tag/v2.1.1)**
 
-A vendored copy of the schema is stored in `contracts/vitals/v2.0.json` for
-offline / Yocto build reproducibility.  The pinned tag is recorded in
-`contracts/VITALS_CONTRACT_VERSION.txt`.
+This repo vendors the canonical schema and metadata for reproducible builds:
+
+- `contracts/vitals/vitals.schema.json`
+- `contracts/vitals/vitals.schema-manifest.yml`
+
+Pinned revision metadata:
+
+- Tag: `contracts/VITALS_CONTRACT_VERSION.txt`
+- Commit SHA: `contracts/vitals/vitals.schema-manifest.yml` (`pinned_commit`)
 
 The `Contract Drift Check` workflow runs daily and fails with a clear message
 when a newer contract tag is available upstream.  The `Vendor Telemetry
 Contract` workflow (manual trigger) downloads the new schema and opens a PR
 automatically.  See `contracts/README.md` for the full update procedure.
 
-The service validates v2 payloads and accepts schema version via `version` or compatibility aliases (`schema_version`, `payload_version`, `contract_version`).
-If version is omitted but all required v2 fields are present, the message is treated as v2 and normalized to `"2.0"`.
-Mismatched versions are logged and dropped safely.
+Runtime payload compatibility rules:
+
+- `version` must be SemVer (`MAJOR.MINOR.PATCH`).
+- Any `2.x.x` payload is accepted.
+- Legacy `2.0` is accepted during migration with a warning.
+- Different MAJOR versions are rejected and logged as incompatible.
+- Unknown fields are stripped with warning to tolerate non-breaking schema growth.
+- Missing required fields and type/range errors are rejected with clear errors.
+
+Detailed upgrade and compatibility policy: `docs/contract-pinning.md`.
 
 ### MQTT topics
 
@@ -154,7 +168,7 @@ Mismatched versions are logged and dropped safely.
 
 ### Required input fields
 
-`version`, `patient_id`, `scenario`, `scenario_stage`, `timestamp`, `hr`, `bp_sys`, `bp_dia`, `o2_sat`, `temperature`, `respiratory_rate`, `wbc`, `lactate`, `sirs_score`, `qsofa_score`, `sepsis_stage`, `sepsis_onset_ts` (nullable), `quality`, `source`
+`version`, `patient_id`, `scenario`, `scenario_stage`, `timestamp`, `hr`, `bp_sys`, `bp_dia`, `o2_sat`, `temperature`, `respiratory_rate`, `wbc`, `lactate`, `creatinine`, `altered_mentation`, `sirs_score`, `qsofa_score`, `sepsis_stage`, `sepsis_onset_ts` (nullable), `quality`, `source`
 
 ### Input validation ranges
 

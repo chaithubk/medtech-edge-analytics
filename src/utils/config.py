@@ -15,7 +15,7 @@ class Config:
 
     # Contract schema
     MEDTECH_VITALS_SCHEMA: str = os.getenv(
-        "MEDTECH_VITALS_SCHEMA", "/usr/share/medtech/contracts/vitals/current.json"
+        "MEDTECH_VITALS_SCHEMA", "/usr/share/medtech/contracts/vitals/vitals.schema.json"
     )
 
     # Model & Inference
