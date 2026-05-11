@@ -140,8 +140,9 @@ This repo vendors the canonical schema and metadata for reproducible builds:
 
 Pinned revision metadata:
 
-- Tag: `contracts/VITALS_CONTRACT_VERSION.txt`
-- Commit SHA: `contracts/vitals/vitals.schema-manifest.yml` (`pinned_commit`)
+- Tag: `contracts/vitals/contract-pin.json` (`tag`)
+- Commit SHA: `contracts/vitals/contract-pin.json` (`commit_sha`)
+- Compatibility: `contracts/vitals/contract-pin.json` (`compatibility.classification`)
 
 The `Contract Drift Check` workflow runs daily and fails with a clear message
 when a newer contract tag is available upstream.  The `Vendor Telemetry

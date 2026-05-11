@@ -28,22 +28,13 @@ jobs:
       - name: Read pinned contract version
         id: pinned
         run: |
-          VERSION=$(cat contracts/VITALS_CONTRACT_VERSION.txt | tr -d '[:space:]')
+          VERSION=$(python3 scripts/contract_ci/read_pinned_version.py)
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Pinned contract version: ${VERSION}"
 
           # Informational context from vendored manifest
           if [ -f contracts/vitals/vitals.schema-manifest.yml ]; then
-            python3 - <<'PYEOF'
-try:
-    import yaml
-    m = yaml.safe_load(open("contracts/vitals/vitals.schema-manifest.yml"))
-    print(f"  Pinned commit : {m.get('pinned_commit', 'unknown')}")
-    print(f"  Compat class  : {m.get('compatibility_class', 'unknown')}")
-    print(f"  Vendored at   : {m.get('vendored_at', 'unknown')}")
-except Exception as e:
-    print(f"  (could not read manifest: {e})")
-PYEOF
+            python3 scripts/contract_ci/print_manifest_context.py
           fi
 
       - name: Fetch latest tag from contract repo

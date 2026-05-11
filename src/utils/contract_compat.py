@@ -23,6 +23,7 @@ Runtime version compatibility check::
         raise ValueError("Incompatible payload version")
 """
 
+import json
 import os
 import pathlib
 import re
@@ -36,16 +37,51 @@ logger = get_logger(__name__)
 # Internal constants
 # ---------------------------------------------------------------------------
 
+_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+_DEFAULT_MANIFEST_PATH = _REPO_ROOT / "contracts" / "vitals" / "vitals.schema-manifest.yml"
+
+# Pinned contract metadata file shared with platform orchestration.
+_CONTRACT_PIN_PATH = _REPO_ROOT / "contracts" / "vitals" / "contract-pin.json"
+
+
+def _load_pinned_contract_version() -> str:
+    """Resolve pinned contract version from metadata with safe fallbacks."""
+    if _CONTRACT_PIN_PATH.exists():
+        try:
+            data = json.loads(_CONTRACT_PIN_PATH.read_text(encoding="utf-8"))
+            tag = str(data.get("tag", "")).strip()
+            if tag.startswith("v"):
+                return tag[1:]
+            if tag:
+                return tag
+        except (json.JSONDecodeError, OSError):
+            logger.warning("Failed to parse %s; falling back to manifest.", _CONTRACT_PIN_PATH)
+
+    if _DEFAULT_MANIFEST_PATH.exists():
+        try:
+            import yaml  # type: ignore[import]  # noqa: PLC0415
+
+            manifest = yaml.safe_load(_DEFAULT_MANIFEST_PATH.read_text(encoding="utf-8"))
+            if isinstance(manifest, dict):
+                schema_version = str(
+                    manifest.get("schema_version") or manifest.get("current_version") or ""
+                ).strip()
+                if schema_version:
+                    return schema_version
+        except Exception:
+            logger.warning("Failed to resolve pinned contract version from manifest.")
+
+    # Safe fallback keeps service behavior deterministic if metadata is missing.
+    return "0.0.0"
+
+
 # Pinned contract version for this consumer revision.
-PINNED_CONTRACT_VERSION = "2.1.1"
+PINNED_CONTRACT_VERSION = _load_pinned_contract_version()
 
 _SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 # Legacy two-part version "2.0" accepted for backward compat during migration.
 _LEGACY_2PART_RE = re.compile(r"^(\d+)\.(\d+)$")
-
-_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-_DEFAULT_MANIFEST_PATH = _REPO_ROOT / "contracts" / "vitals" / "vitals.schema-manifest.yml"
 
 # Environment variable to override the manifest path (mirrors the schema loader pattern).
 _MANIFEST_ENV_VAR = "MEDTECH_VITALS_MANIFEST"
