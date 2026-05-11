@@ -37,11 +37,57 @@ logger = get_logger(__name__)
 # Internal constants
 # ---------------------------------------------------------------------------
 
+_CONTRACTS_DIR_ENV_VAR = "MEDTECH_CONTRACTS_DIR"
+_DEFAULT_CONTRACTS_DIR = pathlib.Path("/usr/share/medtech/contracts")
 _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-_DEFAULT_MANIFEST_PATH = _REPO_ROOT / "contracts" / "vitals" / "vitals.schema-manifest.yml"
+
+
+def _iter_contracts_dirs() -> List[pathlib.Path]:
+    """Return candidate contract directories ordered by runtime preference."""
+    candidates: List[pathlib.Path] = []
+
+    env_contracts_dir = os.environ.get(_CONTRACTS_DIR_ENV_VAR, "").strip()
+    if env_contracts_dir:
+        candidates.append(pathlib.Path(env_contracts_dir))
+
+    # Canonical Yocto/rootfs location used by containers and edge devices.
+    candidates.append(_DEFAULT_CONTRACTS_DIR)
+
+    # Local dev and test layouts (walk parent dirs of this module).
+    module_path = pathlib.Path(__file__).resolve()
+    for parent in module_path.parents:
+        candidates.append(parent / "contracts")
+
+    # Last resort: current working directory.
+    candidates.append(pathlib.Path.cwd() / "contracts")
+
+    unique: List[pathlib.Path] = []
+    seen: set[str] = set()
+    for p in candidates:
+        key = str(p)
+        if key not in seen:
+            seen.add(key)
+            unique.append(p)
+    return unique
+
+
+def _resolve_contract_file(relative_path: pathlib.Path) -> pathlib.Path:
+    """Resolve a contract file path from known runtime/development locations."""
+    dirs = _iter_contracts_dirs()
+    for contracts_dir in dirs:
+        candidate = contracts_dir / relative_path
+        if candidate.exists():
+            return candidate
+    return dirs[0] / relative_path
+
+
+_DEFAULT_MANIFEST_PATH = _resolve_contract_file(
+    pathlib.Path("vitals") / "vitals.schema-manifest.yml"
+)
 
 # Pinned contract metadata file shared with platform orchestration.
-_CONTRACT_PIN_PATH = _REPO_ROOT / "contracts" / "vitals" / "contract-pin.json"
+_CONTRACT_PIN_PATH = _resolve_contract_file(pathlib.Path("vitals") / "contract-pin.json")
+_VERSION_PIN_PATH = _resolve_contract_file(pathlib.Path("VITALS_CONTRACT_VERSION.txt"))
 
 
 def _load_pinned_contract_version() -> str:
@@ -56,6 +102,16 @@ def _load_pinned_contract_version() -> str:
                 return tag
         except (json.JSONDecodeError, OSError):
             logger.warning("Failed to parse %s; falling back to manifest.", _CONTRACT_PIN_PATH)
+
+    if _VERSION_PIN_PATH.exists():
+        try:
+            version = _VERSION_PIN_PATH.read_text(encoding="utf-8").strip()
+            if version.startswith("v"):
+                return version[1:]
+            if version:
+                return version
+        except OSError:
+            logger.warning("Failed to read %s; falling back to manifest.", _VERSION_PIN_PATH)
 
     if _DEFAULT_MANIFEST_PATH.exists():
         try:
