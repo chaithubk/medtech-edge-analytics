@@ -14,8 +14,9 @@ vendored for offline / Yocto build reproducibility.
 
 Active pinned revision:
 
-- Tag: `VITALS_CONTRACT_VERSION.txt` (currently **v2.1.1**)
-- Commit SHA: `vitals/vitals.schema-manifest.yml` -> `pinned_commit`
+- Tag: `vitals/contract-pin.json` -> `tag`
+- Commit SHA: `vitals/contract-pin.json` -> `commit_sha`
+- Compatibility class: `vitals/contract-pin.json` -> `compatibility.classification`
 
 ## Directory Layout
 
@@ -24,6 +25,7 @@ contracts/
 ├── VITALS_CONTRACT_VERSION.txt     # Pinned tag from contract repo
 ├── README.md                       # This file
 └── vitals/
+   ├── contract-pin.json           # Structured pin metadata (canonical)
    ├── vitals.schema.json          # Canonical vendored JSON Schema
    └── vitals.schema-manifest.yml  # Governance metadata (compat, commit pin)
 ```
@@ -75,7 +77,8 @@ When the upstream contract repo publishes a new tag:
    (`workflow_dispatch`) and provide the new tag as input. The workflow will:
    - Download canonical schema from `schemas/vitals/vitals.schema.json`
    - Download governance metadata from `schemas/vitals/vitals.schema-manifest.yml`
-   - Update `contracts/VITALS_CONTRACT_VERSION.txt`
+   - Update `contracts/vitals/contract-pin.json`
+   - Update `contracts/VITALS_CONTRACT_VERSION.txt` (legacy compatibility)
    - Stamp exact commit SHA (`pinned_commit`) in vendored manifest
    - Open a PR automatically
 

@@ -20,6 +20,7 @@ import yaml
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
 _SCHEMA_PATH = _REPO_ROOT / "contracts" / "vitals" / "vitals.schema.json"
 _MANIFEST_PATH = _REPO_ROOT / "contracts" / "vitals" / "vitals.schema-manifest.yml"
+_PIN_PATH = _REPO_ROOT / "contracts" / "vitals" / "contract-pin.json"
 _FIXTURES_PATH = _REPO_ROOT / "tests" / "fixtures" / "sample_vitals.json"
 
 
@@ -43,10 +44,26 @@ class TestContractSchemaV2:
         assert _SCHEMA_PATH.exists(), f"Schema file not found: {_SCHEMA_PATH}"
 
     def test_contract_version_file_exists(self) -> None:
-        """The contract version pin file must be present and contain a v-prefixed tag."""
+        """The legacy contract version pin file must exist and match metadata tag."""
         version_file = _REPO_ROOT / "contracts" / "VITALS_CONTRACT_VERSION.txt"
         assert version_file.exists(), f"Contract version file not found: {version_file}"
-        assert version_file.read_text().strip() == "v2.1.1"
+        assert _PIN_PATH.exists(), f"Contract pin metadata file not found: {_PIN_PATH}"
+        pin = json.loads(_PIN_PATH.read_text(encoding="utf-8"))
+        assert version_file.read_text().strip() == pin["tag"]
+
+    def test_contract_pin_metadata_has_required_fields(self) -> None:
+        """Structured contract pin metadata must include orchestration fields."""
+        pin = json.loads(_PIN_PATH.read_text(encoding="utf-8"))
+        required = {
+            "contract_repo",
+            "tag",
+            "commit_sha",
+            "schema_path",
+            "local_schema",
+            "compatibility",
+        }
+        assert required.issubset(pin.keys())
+        assert pin["local_schema"] == "contracts/vitals/vitals.schema.json"
 
     def test_manifest_file_exists(self) -> None:
         """The contract manifest YAML must be present alongside the canonical schema."""

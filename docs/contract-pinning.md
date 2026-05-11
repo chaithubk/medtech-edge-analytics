@@ -7,12 +7,13 @@ contract revision.
 
 The active contract revision is identified by:
 
-- Tag: `contracts/VITALS_CONTRACT_VERSION.txt`
-- Commit SHA: `contracts/vitals/vitals.schema-manifest.yml` -> `pinned_commit`
+- Tag: `contracts/vitals/contract-pin.json` -> `tag`
+- Commit SHA: `contracts/vitals/contract-pin.json` -> `commit_sha`
 - Canonical schema path in contract repo: `schemas/vitals/vitals.schema.json`
 
 Vendored artifacts in this repository:
 
+- `contracts/vitals/contract-pin.json`
 - `contracts/vitals/vitals.schema.json`
 - `contracts/vitals/vitals.schema-manifest.yml`
 
