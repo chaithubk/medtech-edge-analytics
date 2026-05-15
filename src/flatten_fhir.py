@@ -22,6 +22,9 @@ LOINC_CODES = {
     "6690-2": "wbc",
 }
 
+FEATURE_COLUMNS = ["heart_rate", "body_temperature", "systolic_bp", "wbc"]
+TARGET_COLUMN = "sepsis"
+
 SEPSIS_SNOMED_CODE = "91302003"
 RAW_FHIR_DIR = Path("data/raw_fhir")
 PROCESSED_DIR = Path("data/processed")
@@ -69,14 +72,27 @@ def extract_vital_signs(patient_data: Dict) -> Dict[str, Optional[float]]:
     for entry in patient_data["entry"]:
         resource = entry.get("resource", {})
         if resource.get("resourceType") == "Observation":
+            # Most FHIR Observation values are under valueQuantity.value.
+            value_quantity = resource.get("valueQuantity", {})
             coding_list = resource.get("code", {}).get("coding", [])
             for coding in coding_list:
                 loinc_code = coding.get("code")
                 if loinc_code in LOINC_CODES:
                     vital_name = LOINC_CODES[loinc_code]
-                    value_quantity = resource.get("value", {})
                     if isinstance(value_quantity, dict) and "value" in value_quantity:
                         vitals[vital_name] = float(value_quantity["value"])
+
+            # Blood pressure often arrives as a panel Observation with components.
+            for component in resource.get("component", []):
+                comp_coding_list = component.get("code", {}).get("coding", [])
+                comp_value_quantity = component.get("valueQuantity", {})
+                if not (isinstance(comp_value_quantity, dict) and "value" in comp_value_quantity):
+                    continue
+                for comp_coding in comp_coding_list:
+                    loinc_code = comp_coding.get("code")
+                    if loinc_code in LOINC_CODES:
+                        vital_name = LOINC_CODES[loinc_code]
+                        vitals[vital_name] = float(comp_value_quantity["value"])
 
     return vitals
 
@@ -88,19 +104,73 @@ def load_fhir_bundles() -> List[Dict]:
     Returns:
         List of parsed FHIR bundles
     """
-    bundles = []
+    bundles: List[Dict] = []
+    resources: List[Dict] = []
 
     if not RAW_FHIR_DIR.exists():
         raise FileNotFoundError(f"FHIR directory not found: {RAW_FHIR_DIR}")
 
-    for json_file in RAW_FHIR_DIR.glob("*.json"):
+    files = list(RAW_FHIR_DIR.rglob("*.json")) + list(RAW_FHIR_DIR.rglob("*.ndjson"))
+
+    for json_file in files:
         try:
             with open(json_file, "r") as f:
-                bundle = json.load(f)
-                if bundle.get("resourceType") == "Bundle":
-                    bundles.append(bundle)
+                if json_file.suffix == ".ndjson":
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        item = json.loads(line)
+                        if item.get("resourceType") == "Bundle":
+                            bundles.append(item)
+                        elif item.get("resourceType"):
+                            resources.append(item)
+                    continue
+
+                parsed = json.load(f)
+                parsed_items = parsed if isinstance(parsed, list) else [parsed]
+                for item in parsed_items:
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("resourceType") == "Bundle":
+                        bundles.append(item)
+                    elif item.get("resourceType"):
+                        resources.append(item)
         except (json.JSONDecodeError, IOError) as e:
             print(f"Warning: Failed to load {json_file}: {e}")
+
+    if bundles:
+        return bundles
+
+    # Fallback: if export produced standalone FHIR resources, group by patient.
+    if resources:
+        grouped: Dict[str, List[Dict]] = {}
+
+        def patient_key(resource: Dict) -> str:
+            if resource.get("resourceType") == "Patient":
+                rid = resource.get("id")
+                return str(rid) if rid else "unknown"
+
+            ref = (
+                resource.get("subject", {}).get("reference")
+                or resource.get("patient", {}).get("reference")
+                or ""
+            )
+            if isinstance(ref, str) and ref:
+                return ref.split("/")[-1]
+            return "unknown"
+
+        for resource in resources:
+            key = patient_key(resource)
+            grouped.setdefault(key, []).append(resource)
+
+        for patient_resources in grouped.values():
+            bundles.append(
+                {
+                    "resourceType": "Bundle",
+                    "entry": [{"resource": r} for r in patient_resources],
+                }
+            )
 
     return bundles
 
@@ -130,7 +200,7 @@ def flatten_fhir_to_dataframe(bundles: List[Dict]) -> pd.DataFrame:
         }
         records.append(record)
 
-    df = pd.DataFrame(records)
+    df = pd.DataFrame.from_records(records, columns=[*FEATURE_COLUMNS, TARGET_COLUMN])
     return df
 
 
@@ -146,14 +216,19 @@ def apply_imputation_and_scaling(
     Returns:
         Tuple of (imputed and scaled DataFrame, fitted scaler)
     """
-    feature_cols = ["heart_rate", "body_temperature", "systolic_bp", "wbc"]
+    missing_cols = [col for col in FEATURE_COLUMNS if col not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required feature columns: {missing_cols}")
+
+    if df.empty:
+        return df.copy(), StandardScaler()
 
     imputer = SimpleImputer(strategy="median")
     df_imputed = df.copy()
-    df_imputed[feature_cols] = imputer.fit_transform(df[feature_cols])
+    df_imputed[FEATURE_COLUMNS] = imputer.fit_transform(df[FEATURE_COLUMNS])
 
     scaler = StandardScaler()
-    df_imputed[feature_cols] = scaler.fit_transform(df_imputed[feature_cols])
+    df_imputed[FEATURE_COLUMNS] = scaler.fit_transform(df_imputed[FEATURE_COLUMNS])
 
     return df_imputed, scaler
 
@@ -165,6 +240,12 @@ def main():
     print("Loading FHIR bundles...")
     bundles = load_fhir_bundles()
     print(f"Loaded {len(bundles)} bundles")
+
+    if not bundles:
+        raise ValueError(
+            f"No FHIR bundles found under {RAW_FHIR_DIR}. "
+            "Ensure Synthea output contains Bundle JSON files."
+        )
 
     print("Flattening FHIR data...")
     df = flatten_fhir_to_dataframe(bundles)

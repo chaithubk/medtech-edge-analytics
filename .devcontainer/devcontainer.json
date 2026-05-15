@@ -45,8 +45,11 @@
     }
   },
   "postCreateCommand": "bash -lc 'set -euo pipefail; cd /workspaces/medtech-edge-analytics; rm -rf .venv; /usr/local/bin/python -m venv .venv; .venv/bin/python -m pip install --upgrade pip setuptools wheel; .venv/bin/pip install -r requirements-dev.txt'",
+  "postStartCommand": "bash -lc 'set -euo pipefail; cd /workspaces/medtech-edge-analytics; if ! .venv/bin/python -c \"import pytest, pandas, sklearn\" >/dev/null 2>&1; then .venv/bin/pip install -r requirements-dev.txt; fi'",
   "remoteUser": "root",
   "remoteEnv": {
+    "VIRTUAL_ENV": "/workspaces/medtech-edge-analytics/.venv",
+    "PATH": "/workspaces/medtech-edge-analytics/.venv/bin:${containerEnv:PATH}",
     "PYTHONUNBUFFERED": "1",
     "MQTT_BROKER": "localhost",
     "MQTT_PORT": "1883",
