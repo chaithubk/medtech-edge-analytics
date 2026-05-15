@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
-from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 
 LOINC_CODES = {
@@ -223,9 +222,13 @@ def apply_imputation_and_scaling(
     if df.empty:
         return df.copy(), StandardScaler()
 
-    imputer = SimpleImputer(strategy="median")
     df_imputed = df.copy()
-    df_imputed[FEATURE_COLUMNS] = imputer.fit_transform(df[FEATURE_COLUMNS])
+
+    # Handle fully-missing feature columns defensively to keep pipeline stable.
+    for col in FEATURE_COLUMNS:
+        series = pd.to_numeric(df_imputed[col], errors="coerce")
+        fill_value = float(series.median()) if series.notna().any() else 0.0
+        df_imputed[col] = series.fillna(fill_value)
 
     scaler = StandardScaler()
     df_imputed[FEATURE_COLUMNS] = scaler.fit_transform(df_imputed[FEATURE_COLUMNS])
