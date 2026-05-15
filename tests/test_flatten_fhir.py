@@ -65,6 +65,24 @@ def test_apply_imputation_and_scaling_empty_unshaped_dataframe_raises_clear_erro
         flatten_fhir.apply_imputation_and_scaling(df)
 
 
+def test_apply_imputation_and_scaling_all_missing_features_is_handled():
+    """All-NaN feature columns should be imputed safely and remain processable."""
+    df = pd.DataFrame(
+        {
+            "heart_rate": [None, None, None],
+            "body_temperature": [None, None, None],
+            "systolic_bp": [None, None, None],
+            "wbc": [None, None, None],
+            "sepsis": [0, 1, 0],
+        }
+    )
+
+    df_processed, scaler = flatten_fhir.apply_imputation_and_scaling(df)
+
+    assert not df_processed[flatten_fhir.FEATURE_COLUMNS].isna().any().any()
+    assert scaler is not None
+
+
 def test_main_raises_clear_error_when_no_bundles_found(tmp_path, monkeypatch):
     """main should fail fast with a clear message when no bundles are available."""
     monkeypatch.setattr(flatten_fhir, "RAW_FHIR_DIR", tmp_path)

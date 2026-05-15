@@ -21,6 +21,7 @@ jobs:
       PYTHONUNBUFFERED: "1"
       SYNTHEA_PATIENTS: "1000"
       SYNTHEA_SEED: "12345"
+      SYNTHEA_MODULES: ""
     
     steps:
       - name: Checkout repository
@@ -55,12 +56,21 @@ jobs:
         run: |
           mkdir -p data/raw_fhir
           cd /tmp
+
+          MODULE_ARGS=()
+          if [ -n "${SYNTHEA_MODULES}" ]; then
+            MODULE_ARGS=(-m "${SYNTHEA_MODULES}")
+            echo "Using Synthea module filter: ${SYNTHEA_MODULES}"
+          else
+            echo "Using default Synthea module set"
+          fi
+
           java -jar synthea-with-dependencies.jar \
             -p ${SYNTHEA_PATIENTS} \
-            -m sepsis \
             -s ${SYNTHEA_SEED} \
             -c ${{ github.workspace }}/tools/synthea_config.properties \
-            -o ${{ github.workspace }}/data/raw_fhir/
+            "${MODULE_ARGS[@]}" \
+            --exporter.baseDirectory=${{ github.workspace }}/data/raw_fhir
 
       - name: Inspect generated FHIR files
         run: |

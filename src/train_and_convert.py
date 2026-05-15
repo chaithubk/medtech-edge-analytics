@@ -67,7 +67,7 @@ def build_model(input_shape: int) -> keras.Model:
             keras.layers.Dense(32, activation="relu", name="dense_1"),
             keras.layers.Dense(16, activation="relu", name="dense_2"),
             keras.layers.Dense(8, activation="relu", name="dense_3"),
-            keras.layers.Dense(1, activation="logistic", name="output"),
+            keras.layers.Dense(1, activation="sigmoid", name="output"),
         ]
     )
 
@@ -87,7 +87,7 @@ def build_model(input_shape: int) -> keras.Model:
 
 def representative_dataset_gen(
     X_representative: np.ndarray,
-) -> Iterator[Tuple[np.ndarray,]]:
+) -> Iterator[list[np.ndarray]]:
     """
     Generator for representative dataset during quantization calibration.
 
@@ -103,7 +103,7 @@ def representative_dataset_gen(
     """
     for i in range(0, len(X_representative), BATCH_SIZE):
         batch = X_representative[i : i + BATCH_SIZE].astype(np.float32)
-        yield (batch,)
+        yield [batch]
 
 
 def train_model(
@@ -163,7 +163,7 @@ def export_tflite_int8(
 
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
     converter.representative_dataset = lambda: representative_dataset_gen(X_representative)
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTIN_INT8]
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
     converter.inference_input_type = tf.int8
     converter.inference_output_type = tf.int8
 
