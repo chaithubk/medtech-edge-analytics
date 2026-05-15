@@ -62,6 +62,17 @@ jobs:
             -c ${{ github.workspace }}/tools/synthea_config.properties \
             -o ${{ github.workspace }}/data/raw_fhir/
 
+      - name: Inspect generated FHIR files
+        run: |
+          echo "FHIR output root: data/raw_fhir"
+          JSON_COUNT=$(find data/raw_fhir -type f \( -name "*.json" -o -name "*.ndjson" \) | wc -l)
+          echo "Discovered FHIR JSON/NDJSON files: ${JSON_COUNT}"
+          find data/raw_fhir -maxdepth 3 -type f | head -n 20
+          if [ "${JSON_COUNT}" -eq 0 ]; then
+            echo "::error::No JSON/NDJSON FHIR files were generated under data/raw_fhir."
+            exit 1
+          fi
+
       - name: Flatten FHIR data to CSV
         run: |
           python src/flatten_fhir.py
