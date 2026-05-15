@@ -3,11 +3,12 @@ FROM python:3.10-bookworm
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies
+# Install system dependencies including Java 17 for Synthea
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     vim \
+    openjdk-17-jre \
     nano \
     curl \
     wget \
@@ -29,6 +30,10 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade pip setuptools wheel
 
 WORKDIR /workspaces/medtech-edge-analytics
+
+# Copy and install Python dependencies
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install -r requirements.txt -r requirements-dev.txt
 
 # Set environment variables
 ENV MQTT_BROKER=localhost
