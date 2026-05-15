@@ -48,7 +48,7 @@ jobs:
         run: |
           cd /tmp
           curl -fsSL -o synthea-with-dependencies.jar \
-            https://github.com/synthetichealth/synthea/releases/download/master-branch/synthea-with-dependencies.jar
+            https://github.com/synthetichealth/synthea/releases/download/master-branch-latest/synthea-with-dependencies.jar
           cd -
 
       - name: Generate Synthea FHIR data
