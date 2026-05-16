@@ -2,7 +2,7 @@
 """
 Generate realistic PhysioNet-format sample PSV files for testing.
 
-Creates 10 patient records (5 healthy, 5 sepsis) with realistic vital sign
+Creates 45 patient records (25 healthy, 20 sepsis) with realistic vital sign
 time series data matching ICU monitoring patterns.
 
 PhysioNet 2019 Sepsis Challenge format:
@@ -12,6 +12,7 @@ PhysioNet 2019 Sepsis Challenge format:
 - Missing values represented as empty strings
 """
 
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -107,39 +108,63 @@ def create_sepsis_patient(patient_id):
 def main():
     """Generate all sample PSV files."""
 
+    parser = argparse.ArgumentParser(
+        description="Generate realistic PhysioNet-format sample PSV files for model training."
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducible data generation (default: 42)",
+    )
+    args = parser.parse_args()
+
+    # Set random seed for reproducibility
+    np.random.seed(args.seed)
+
     output_dir = Path("data/physionet_sample/training_setA")
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Configurable dataset size
+    num_healthy = 25  # 25 healthy patients
+    num_sepsis = 20  # 20 sepsis patients
+    total_patients = num_healthy + num_sepsis
+
     print("Generating PhysioNet sample dataset...")
+    print(f"Seed: {args.seed}")
+    print(f"Target: {total_patients} patients ({num_healthy} healthy, {num_sepsis} sepsis)")
     print()
 
-    # Generate 5 healthy patients
-    for i in range(1, 6):
+    # Generate healthy patients
+    for i in range(1, num_healthy + 1):
         patient_id = f"p{i:05d}"
         content = create_healthy_patient(i)
         filepath = output_dir / f"{patient_id}.psv"
         filepath.write_text(content)
-        print(f"✓ Created healthy patient: {filepath.name}")
+        if i % 5 == 0 or i == num_healthy:
+            print(f"✓ Created {i}/{num_healthy} healthy patients")
 
     print()
 
-    # Generate 5 sepsis patients
-    for i in range(6, 11):
+    # Generate sepsis patients
+    for i in range(num_healthy + 1, num_healthy + num_sepsis + 1):
         patient_id = f"p{i:05d}"
         content = create_sepsis_patient(i)
         filepath = output_dir / f"{patient_id}.psv"
         filepath.write_text(content)
-        print(f"✓ Created sepsis patient: {filepath.name}")
+        if (i - num_healthy) % 5 == 0 or i == num_healthy + num_sepsis:
+            print(f"✓ Created {i - num_healthy}/{num_sepsis} sepsis patients")
 
     print()
     print(f"Sample dataset created at: {output_dir}")
-    print(f"Total patients: 10 (5 healthy, 5 sepsis)")
+    print(f"Total patients: {total_patients} ({num_healthy} healthy, {num_sepsis} sepsis)")
+    print(f"Sepsis prevalence: {100*num_sepsis/total_patients:.1f}%")
     print()
     print("Data characteristics:")
     print("  - Healthy patients: normal vitals, sepsis label = 0")
     print("  - Sepsis patients: progressive deterioration, sepsis label = 1 at hour 12+")
     print("  - Format: PhysioNet pipe-separated values (PSV)")
-    print("  - Duration: 24-36 hours per patient")
+    print("  - Duration: 24 hours (healthy), 36 hours (sepsis)")
     print()
 
 

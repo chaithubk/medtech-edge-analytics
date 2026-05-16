@@ -54,14 +54,20 @@ python src/flatten_fhir.py
 echo "✓ FHIR flattening complete"
 echo
 
-# Step 3: Process sample data (includes quality clinical cases)
-echo "Step 3: Applying sample data for model training..."
+# Step 3: Generate sample PSV data (fixed seed for reproducibility)
+echo "Step 3: Generating realistic sample PSV data..."
+python scripts/generate_sample_data.py --seed 42
+echo "✓ Sample data generation complete"
+echo
+
+# Step 4: Process sample data (includes quality clinical cases)
+echo "Step 4: Applying sample data for model training..."
 python src/process_fallback.py
 echo "✓ Dataset preparation complete"
 echo
 
-# Step 4: Train and export model
-echo "Step 4: Training int8 model for i.MX 8 NPU..."
+# Step 5: Train and export model
+echo "Step 5: Training int8 model for i.MX 8 NPU..."
 python src/train_and_convert.py
 
 echo

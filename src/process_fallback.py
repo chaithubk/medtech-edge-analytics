@@ -15,11 +15,9 @@ Sample data location: data/physionet_sample/training_setA/
 Output: data/processed/dataset.csv (merged with Synthea if available)
 """
 
-import glob
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 
