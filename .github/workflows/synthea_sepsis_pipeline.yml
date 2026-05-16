@@ -9,7 +9,7 @@ on:
     - cron: '0 2 * * 1'  # Weekly retraining: Every Monday at 02:00 UTC
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: synthea-sepsis-${{ github.ref }}
@@ -269,3 +269,40 @@ jobs:
             artifacts/reports/retrain_summary.md
           if-no-files-found: error
           retention-days: 30
+
+      - name: Configure Git for auto-commit
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check if model changed and commit
+        id: commit
+        run: |
+          if git diff --quiet models/imx8-compatible-sepsis.tflite; then
+            echo "Model unchanged, skipping commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Model changed, committing..."
+            git add models/imx8-compatible-sepsis.tflite
+            git commit -m "ci: update sepsis model from training run ${{ github.run_id }}
+
+- Synthea version: $(cat synthea_version.txt)
+- Trigger: ${{ github.event_name }}
+- Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and push model release tag
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          TAG="models/$(cat synthea_version.txt)-${TIMESTAMP}"
+          echo "Creating tag: ${TAG}"
+          git tag -a "${TAG}" -m "Sepsis model release from training run ${{ github.run_id }}"
+          git push origin "${TAG}"
+          echo "Model tagged as: ${TAG}"
+
+      - name: Push updated model back to main
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          git push origin main
