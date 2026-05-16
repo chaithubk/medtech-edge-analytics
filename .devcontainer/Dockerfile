@@ -22,9 +22,13 @@ RUN apt-get update && apt-get install -y \
     openssh-client \
     bubblewrap \
     socat \
+    shellcheck \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
+# Install actionlint
+RUN curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin actionlint
 
 # Upgrade pip
 RUN pip install --upgrade pip setuptools wheel
