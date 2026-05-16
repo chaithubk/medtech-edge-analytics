@@ -154,7 +154,7 @@ jobs:
         if: steps.commit.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v8.1.1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PR_BOT_TOKEN || github.token }}
           commit-message: "chore: update sepsis model from training pipeline"
           title: "Update sepsis model from training run"
           body: |
