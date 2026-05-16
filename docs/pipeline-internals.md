@@ -21,9 +21,16 @@ the model consumed by edge and Yocto builds.
 
 ## CI Triggering and Control
 
-- Scheduled retraining: weekly (Monday 02:00 UTC)
-- Manual retraining: workflow dispatch
-- Push-triggered validation: regular quality checks and tests
+- Manual retraining: workflow dispatch (manual trigger only).
+- Scheduled retraining was removed from the automated pipeline to avoid
+	unreviewed model updates; retraining runs are intended to be run manually
+	when an operator wants to refresh the model.
+- When a trained model changes, CI now creates or updates a stable pull request
+	(`model-update-sepsis-model`) with the updated artifact for human review and
+	merge. The pipeline will continue to create a model tag in the format
+	`models/<synthea-version>-<timestamp>` for release lineage.
+	(Note: CI no longer pushes changes directly to `main` — pull requests are
+	used to respect branch protection rules.)
 
 ## Artifacts and Lineage
 
@@ -45,11 +52,12 @@ Lineage fields captured in reports/metadata include:
 ## Versioning Strategy
 
 - Canonical runtime path: `models/imx8-compatible-sepsis.tflite`
-- CI auto-commit: model changes are committed to `main`
 - CI model tag format: `models/<synthea-version>-<timestamp>`
 
 Operationally, Yocto should pin to a commit SHA that corresponds to a verified
-model tag for deterministic builds.
+model tag for deterministic builds. Note that model updates are now surfaced
+through a reviewable pull request (`model-update-sepsis-model`) rather than an
+automatic push to `main`.
 
 ## Failure and Quality Gates
 

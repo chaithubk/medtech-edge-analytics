@@ -1,0 +1,87 @@
+name: Detect Model Regeneration Needs
+
+on:
+  pull_request:
+    paths:
+      - 'src/train_and_convert.py'
+      - '.github/workflows/detect-model-changes.yml'
+
+jobs:
+  check-model-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check for model-affecting changes
+        id: check
+        env:
+          BASE_BRANCH: origin/${{ github.base_ref }}
+          HEAD_BRANCH: HEAD
+        run: |
+          bash .github/scripts/detect_model_changes.sh "$BASE_BRANCH" "$HEAD_BRANCH"
+
+      - name: Add label to PR
+        if: steps.check.outputs.model_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['model-regeneration-required']
+            });
+            console.log('✓ Added label: model-regeneration-required');
+
+      - name: Post PR comment
+        if: steps.check.outputs.model_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+            
+            // Generate comment using the Python script
+            const patterns = '${{ steps.check.outputs.matched_patterns }}';
+            const comment = execSync(`python .github/scripts/format_model_regen_comment.py "${patterns}"`, { encoding: 'utf-8' });
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+            console.log('✓ Posted PR comment with model regeneration instructions');
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ steps.check.outputs.model_changed }}" = "true" ]; then
+            {
+              echo "## ⚠️ Model Regeneration Needed"
+              echo ""
+              echo "This PR will require model regeneration after merge."
+              echo ""
+              echo "**Detected changes:**"
+              echo "\`\`\`"
+              echo "${{ steps.check.outputs.matched_patterns }}"
+              echo "\`\`\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## ✓ No Model Regeneration Needed"
+              echo ""
+              echo "Changes to \`src/train_and_convert.py\` do not affect model architecture or training logic."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

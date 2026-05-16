@@ -60,7 +60,7 @@ runs:
           --network smoke-net \
           -e MQTT_BROKER=medtech-vitals-publisher \
           -e MQTT_PORT=1883 \
-          -e MODEL_PATH=models/sepsis_model.tflite \
+          -e MODEL_PATH=models/imx8-compatible-sepsis.tflite \
           -e LOGLEVEL=INFO \
           ${{ inputs.image }}
 
@@ -86,6 +86,20 @@ runs:
             -t medtech/predictions/sepsis \
             -C 1
         echo "Functional verification passed — prediction received on medtech/predictions/sepsis."
+
+    - name: Check for runtime inference errors (informational)
+      shell: bash
+      run: |
+        if docker logs medtech-edge 2>&1 | grep -Eq "Scoring failed|Input shape mismatch|Failed to load model"; then
+          echo "⚠️  WARNING: Analytics container reported inference/runtime errors:"
+          docker logs medtech-edge 2>&1 | grep -E "Scoring failed|Input shape mismatch|Failed to load model" || true
+          echo ""
+          echo "This may indicate a model version mismatch or compatibility issue."
+          echo "Check if model regeneration is required after recent changes."
+          echo "See: https://github.com/chaithubk/medtech-edge-analytics/blob/main/docs/pipeline-internals.md"
+        else
+          echo "✓ No inference/runtime model errors detected in analytics logs."
+        fi
 
     - name: Dump container logs on failure
       if: ${{ failure() }}
