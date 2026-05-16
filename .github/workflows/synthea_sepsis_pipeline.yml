@@ -87,8 +87,8 @@ jobs:
       - name: Flatten FHIR data to CSV
         run: python src/flatten_fhir.py
 
-      - name: PhysioNet fallback if Synthea has no sepsis positives
-        run: python scripts/process_fallback.py
+      - name: Process sample data (fallback for zero-sepsis Synthea)
+        run: python src/process_fallback.py
 
       - name: Train model and export TFLite
         run: |

@@ -1,53 +1,73 @@
 #!/bin/bash
-# Train sepsis detection model with automatic dataset selection
-# 
-# Automatically handles:
-# 1. PhysioNet Challenge 2019 data (if available)
-# 2. Synthea FHIR data (if PhysioNet not found)
-# 3. Missing data (with helpful error messages)
+# Train sepsis detection model with automatic fallback to sample data
+#
+# Flow:
+#   1. Generate Synthea FHIR data (10,000 patients)
+#   2. Flatten FHIR to CSV
+#   3. If zero sepsis cases: merge with committed sample data
+#   4. Train int8 model for i.MX 8 NPU edge device
+#
 
 set -e
 
-echo "=== Sepsis Detection Model Training Pipeline ==="
+echo "=== Sepsis Edge Device Model Training Pipeline ==="
 echo
 
+# Configuration
+SYNTHEA_VERSION="3.3.0"
+SYNTHEA_PATIENTS="10000"
+SYNTHEA_SEED="12345"
+SYNTHEA_MODULES="sepsis"
+FHIR_DIR="data/raw_fhir"
+PROCESSED_CSV="data/processed/dataset.csv"
 
-# Check what data is available
-PHYSIONET_DIR="data/raw_physionet"
-FHIR_DIR="data/raw_fhir/fhir"
-PROCESSED_DIR="data/processed"
+# Step 1: Generate Synthea FHIR data
+echo "Step 1: Generating Synthea FHIR cohort ($SYNTHEA_PATIENTS patients)..."
+mkdir -p "$FHIR_DIR"
 
-PHYSIONET_COUNT=$(ls "$PHYSIONET_DIR"/*.csv 2>/dev/null | wc -l || echo 0)
-FHIR_COUNT=$(ls "$FHIR_DIR"/*.json 2>/dev/null | wc -l || echo 0)
-
-echo "Data Availability:"
-echo "  PhysioNet files: $PHYSIONET_COUNT"
-echo "  FHIR bundles: $FHIR_COUNT"
-echo
-
-# Process available data
-if [ "$PHYSIONET_COUNT" -gt 0 ]; then
-    echo "→ PhysioNet data detected. Loading..."
-    python3 src/load_physionet_data.py
-    echo "✓ PhysioNet data processed"
-    echo
-elif [ "$FHIR_COUNT" -gt 0 ]; then
-    echo "→ FHIR data detected. Flattening..."
-    python3 src/flatten_fhir.py
-    echo "✓ FHIR data processed"
-    echo
-    python3 scripts/process_fallback.py
-else
-    echo "✗ ERROR: No dataset found!"
-    echo
-    echo "Attempting to download PhysioNet sample for CI/dev..."
-    python3 scripts/process_fallback.py
+if ! command -v java &> /dev/null; then
+    echo "✗ ERROR: Java not found. Required to run Synthea."
+    exit 1
 fi
 
-# Train model
-echo "=== Training Model ==="
+cd /tmp
+SYNTHEA_JAR="synthea-with-dependencies.jar"
+if [ ! -f "$SYNTHEA_JAR" ]; then
+    echo "  Downloading Synthea $SYNTHEA_VERSION..."
+    curl -fsSL -o "$SYNTHEA_JAR" \
+        "https://github.com/synthetichealth/synthea/releases/download/v${SYNTHEA_VERSION}/synthea-with-dependencies.jar"
+fi
+
+java -jar "$SYNTHEA_JAR" \
+    -p "$SYNTHEA_PATIENTS" \
+    -s "$SYNTHEA_SEED" \
+    -m "$SYNTHEA_MODULES" \
+    --exporter.baseDirectory="$PWD/$FHIR_DIR" 2>&1 | tail -20
+
+cd - > /dev/null
+echo "✓ Synthea generation complete"
 echo
-python3 src/train_and_convert.py
+
+# Step 2: Flatten FHIR to CSV
+echo "Step 2: Flattening FHIR data to CSV..."
+python src/flatten_fhir.py
+echo "✓ FHIR flattening complete"
+echo
+
+# Step 3: Process sample data (includes quality clinical cases)
+echo "Step 3: Applying sample data for model training..."
+python src/process_fallback.py
+echo "✓ Dataset preparation complete"
+echo
+
+# Step 4: Train and export model
+echo "Step 4: Training int8 model for i.MX 8 NPU..."
+python src/train_and_convert.py
+
+echo
+echo "=== Training Pipeline Complete ==="
+echo "Model exported to: models/imx8-compatible-sepsis.tflite"
+ls -lh models/imx8-compatible-sepsis.tflite
 echo
 echo "✓ Training complete!"
 echo
