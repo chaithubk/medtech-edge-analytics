@@ -1,11 +1,6 @@
 name: Synthea Sepsis Model Pipeline
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
-  schedule:
-    - cron: '0 2 * * 1'
 permissions:
   contents: write
   pull-requests: write
@@ -162,5 +157,5 @@ jobs:
             
             Training run: ${{ github.run_id }}
             Commit: ${{ github.sha }}
-          branch: "model-update-${{ github.run_id }}"
-          delete-branch: true
+          branch: "model-update-sepsis-model"
+          delete-branch: false
