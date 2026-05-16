@@ -1,11 +1,6 @@
 name: Synthea Sepsis Model Pipeline
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
-  schedule:
-    - cron: '0 2 * * 1'
 permissions:
   contents: write
   pull-requests: write
@@ -154,7 +149,7 @@ jobs:
         if: steps.commit.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v8.1.1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PR_BOT_TOKEN || github.token }}
           commit-message: "chore: update sepsis model from training pipeline"
           title: "Update sepsis model from training run"
           body: |
@@ -162,5 +157,5 @@ jobs:
             
             Training run: ${{ github.run_id }}
             Commit: ${{ github.sha }}
-          branch: "model-update-${{ github.run_id }}"
-          delete-branch: true
+          branch: "model-update-sepsis-model"
+          delete-branch: false
