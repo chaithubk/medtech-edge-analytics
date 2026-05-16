@@ -61,12 +61,12 @@
 - `src/inference/sepsis_scorer.py` - Feature engineering + scoring
 - `src/mqtt/mqtt_client.py` - MQTT integration
 - `tests/test_*.py` - Unit tests
-- `models/sepsis_model.tflite` - Pre-trained model (placeholder)
+- `models/imx8-compatible-sepsis.tflite` - CI-managed model artifact
 
 ## Assumptions
 
 - Vitals arrive every 10 seconds (consistent cadence)
-- Model is pre-trained and provided (training pipeline external to this repository)
+- Model is generated and updated by repository CI retraining pipeline
 - MQTT broker is available at localhost:1883
 - Python 3.11+ with NumPy, TensorFlow Lite Runtime
 - <100ms latency is acceptable for clinical workflows

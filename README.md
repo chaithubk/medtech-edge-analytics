@@ -75,19 +75,10 @@ python -m src --scenario critical
 python -m src --mqtt-broker localhost --mqtt-port 1883
 ```
 
-### Use QEMU-compatible model artifact
+### Use canonical model artifact
 
 ```bash
-MODEL_PATH=models/sepsis_model_qemu.tflite python -m src --scenario healthy
-```
-
-### Regenerate QEMU artifact
-
-```bash
-python tools/convert_model_for_qemu.py \
-    --input /path/to/source_model \
-    --output models/sepsis_model_qemu.tflite \
-    --mode float
+MODEL_PATH=models/imx8-compatible-sepsis.tflite python -m src --scenario healthy
 ```
 
 ## Configuration
@@ -100,7 +91,7 @@ Environment variables are defined in `src/utils/config.py`.
 | `MQTT_PORT` | `1883` | MQTT broker port |
 | `MQTT_TOPIC_VITALS` | `medtech/vitals/latest` | Input telemetry topic |
 | `MQTT_TOPIC_PREDICTIONS` | `medtech/predictions/sepsis` | Output prediction topic |
-| `MODEL_PATH` | `models/sepsis_model.tflite` | Active TFLite artifact |
+| `MODEL_PATH` | `models/imx8-compatible-sepsis.tflite` | Active TFLite artifact |
 | `BUFFER_SIZE` | `360` | Number of buffered vital samples |
 | `VITAL_INTERVAL_S` | `10` | Synthetic scenario publish interval |
 | `LOGLEVEL` | `INFO` | Logging level |
@@ -248,6 +239,11 @@ docker run --rm medtech-edge-analytics
 ## Model Documentation
 
 Detailed model-card and artifact guidance is available in `models/README.md`.
+
+## Model Training and Yocto Integration
+
+- CI training and artifact/version flow: `docs/pipeline-internals.md`
+- Yocto consumption and recipe snippet: `docs/YOCTO_INTEGRATION.md`
 
 ## Planned Enhancements
 

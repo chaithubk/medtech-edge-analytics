@@ -44,10 +44,18 @@ htmlcov/
 .hypothesis/
 *.cover
 
+# Local artifacts (not tracked)
+data/
+artifacts/
+
 # TensorFlow/ML
 __pycache__
 *.pb
 *.h5
+
+# Allow model artifacts (tracked via CI)
+!models/
+!models/*.tflite
 *.ckpt*
 
 # Data
