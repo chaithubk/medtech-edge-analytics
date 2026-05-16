@@ -4,6 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+
 import tensorflow as tf
 
 model_path = Path("models/imx8-compatible-sepsis.tflite")
@@ -31,19 +32,28 @@ interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()[0]
 output_details = interpreter.get_output_details()[0]
 
+# Defensive check to ensure input_details/output_details are dicts (for pylint)
+if not isinstance(input_details, dict):
+    raise TypeError(f"input_details is not a dict: {type(input_details)}")
+if not isinstance(output_details, dict):
+    raise TypeError(f"output_details is not a dict: {type(output_details)}")
+
 model_bytes = model_path.read_bytes()
 size_bytes = len(model_bytes)
-metric_patterns = {
-    "loss": r"^\s*Loss:\s*([0-9]*\.?[0-9]+)",
-    "compile_metrics": r"^\s*Compile_metrics:\s*([0-9]*\.?[0-9]+)",
-}
+# Flexible regex to extract all metrics from TensorFlow epoch lines
+metric_regex = re.compile(r"([a-zA-Z0-9_]+): ([0-9.eE+-]+)")
 parsed_metrics = {}
 if train_log_path.exists():
     log_text = train_log_path.read_text(encoding="utf-8", errors="ignore")
-    for key, pattern in metric_patterns.items():
-        match = re.search(pattern, log_text, flags=re.MULTILINE)
-        if match:
-            parsed_metrics[key] = float(match.group(1))
+    # Find all lines with metrics (those with - metric: value - ...)
+    for line in log_text.splitlines():
+        # Only consider lines with at least one metric (skip epoch headers, etc.)
+        if "-" in line and ":" in line:
+            for metric, value in metric_regex.findall(line):
+                try:
+                    parsed_metrics[metric] = float(value)
+                except Exception:
+                    pass
 
 metadata = {
     "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -72,31 +82,47 @@ metadata_path = report_dir / "model_metadata.json"
 metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
 report_path = report_dir / "pipeline_report.md"
+# Ensure training_results is always a dict for mypy/pylint
+training_results = metadata.get("training_results")
+if not isinstance(training_results, dict):
+    training_results = {}
+training_results_md = "\n".join(f"- {k}: {v}" for k, v in sorted(training_results.items()))
+
+# Defensive: ensure metadata is a dict for mypy
+if not isinstance(metadata, dict):
+    raise TypeError(f"metadata is not a dict: {type(metadata)}")
+# Defensive: ensure all subfields are dicts for mypy
+training_config = metadata.get("training_config")
+if not isinstance(training_config, dict):
+    training_config = {}
+quantization = metadata.get("quantization")
+if not isinstance(quantization, dict):
+    quantization = {}
+
 report = f"""# Synthea Sepsis Training Report
 
 ## Pipeline Outcome
 - Status: success
-- Generated model: `{metadata['model_path']}`
-- Model size: {metadata['model_size_kb']} KB ({metadata['model_size_bytes']} bytes)
-- SHA256: `{metadata['model_sha256']}`
+- Generated model: `{metadata.get('model_path', '')}`
+- Model size: {metadata.get('model_size_kb', '')} KB ({metadata.get('model_size_bytes', '')} bytes)
+- SHA256: `{metadata.get('model_sha256', '')}`
 
 ## Training Configuration
-- Synthea patients: {metadata['training_config']['synthea_patients']}
-- Synthea seed: {metadata['training_config']['synthea_seed']}
-- Epochs: {metadata['training_config']['epochs']}
-- Batch size: {metadata['training_config']['batch_size']}
-- Random seed: {metadata['training_config']['random_seed']}
-- Representative dataset size: {metadata['training_config']['representative_dataset_size']}
+- Synthea patients: {training_config.get('synthea_patients', '')}
+- Synthea seed: {training_config.get('synthea_seed', '')}
+- Epochs: {training_config.get('epochs', '')}
+- Batch size: {training_config.get('batch_size', '')}
+- Random seed: {training_config.get('random_seed', '')}
+- Representative dataset size: {training_config.get('representative_dataset_size', '')}
 
 ## Training Results
-- Loss: {metadata['training_results'].get('loss', 'not parsed from log')}
-- Compile metrics: {metadata['training_results'].get('compile_metrics', 'not parsed from log')}
+{training_results_md if training_results_md else '- No metrics parsed from log'}
 
 ## Quantization Validation (TFLite)
-- Input dtype: `{metadata['quantization']['input_dtype']}`
-- Output dtype: `{metadata['quantization']['output_dtype']}`
-- Input quantization: `{metadata['quantization']['input_quantization']}`
-- Output quantization: `{metadata['quantization']['output_quantization']}`
+- Input dtype: `{quantization.get('input_dtype', '')}`
+- Output dtype: `{quantization.get('output_dtype', '')}`
+- Input quantization: `{quantization.get('input_quantization', '')}`
+- Output quantization: `{quantization.get('output_quantization', '')}`
 
 ## Evidence Artifacts
 - `artifacts/reports/train_and_convert.log`
