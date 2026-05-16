@@ -149,6 +149,17 @@ jobs:
           git push origin "${TAG}"
           echo "Model tagged as: ${TAG}"
 
-      - name: Push updated model back to main
+      - name: Create Pull Request with updated model
         if: steps.commit.outputs.changed == 'true'
-        run: git push origin main
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update sepsis model from training pipeline"
+          title: "Update sepsis model from training run"
+          body: |
+            Automated model training run from `synthea_sepsis_pipeline`
+            
+            Training run: ${{ github.run_id }}
+            Commit: ${{ github.sha }}
+          branch: "model-update-${{ github.run_id }}"
+          delete-branch: true
