@@ -19,7 +19,7 @@ class Config:
     )
 
     # Model & Inference
-    MODEL_PATH: str = os.getenv("MODEL_PATH", "models/sepsis_model.tflite")
+    MODEL_PATH: str = os.getenv("MODEL_PATH", "models/imx8-compatible-sepsis.tflite")
     INFERENCE_TIMEOUT_MS: int = int(os.getenv("INFERENCE_TIMEOUT_MS", "100"))
 
     # Vital Buffer

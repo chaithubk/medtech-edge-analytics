@@ -69,10 +69,17 @@ def test_apply_imputation_and_scaling_all_missing_features_is_handled():
     """All-NaN feature columns should be imputed safely and remain processable."""
     df = pd.DataFrame(
         {
-            "heart_rate": [None, None, None],
-            "body_temperature": [None, None, None],
-            "systolic_bp": [None, None, None],
+            "hr": [None, None, None],
+            "bp_sys": [None, None, None],
+            "bp_dia": [None, None, None],
+            "o2_sat": [None, None, None],
+            "temperature": [None, None, None],
+            "respiratory_rate": [None, None, None],
             "wbc": [None, None, None],
+            "lactate": [None, None, None],
+            "creatinine": [None, None, None],
+            "sirs_score": [None, None, None],
+            "qsofa_score": [None, None, None],
             "sepsis": [0, 1, 0],
         }
     )
@@ -121,8 +128,8 @@ def test_extract_vital_signs_reads_value_quantity_and_components():
 
     vitals = flatten_fhir.extract_vital_signs(bundle)
 
-    assert vitals["heart_rate"] == 88.0
-    assert vitals["systolic_bp"] == 121.0
+    assert vitals["hr"] == 88.0
+    assert vitals["bp_sys"] == 121.0
 
 
 def test_load_fhir_bundles_groups_non_bundle_resources(tmp_path, monkeypatch):
@@ -151,4 +158,4 @@ def test_load_fhir_bundles_groups_non_bundle_resources(tmp_path, monkeypatch):
     assert len(bundles) == 1
     assert len(df) == 1
     assert int(df.iloc[0][flatten_fhir.TARGET_COLUMN]) == 1
-    assert float(df.iloc[0]["heart_rate"]) == 90.0
+    assert float(df.iloc[0]["hr"]) == 90.0

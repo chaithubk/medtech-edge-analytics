@@ -14,14 +14,33 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
+# Expanded LOINC codes and feature columns to match schema
 LOINC_CODES = {
-    "8867-4": "heart_rate",
-    "8310-5": "body_temperature",
-    "8480-6": "systolic_bp",
-    "6690-2": "wbc",
+    "8867-4": "hr",  # Heart rate
+    "8480-6": "bp_sys",  # Systolic BP
+    "8462-4": "bp_dia",  # Diastolic BP
+    "59408-5": "o2_sat",  # O2 saturation
+    "8310-5": "temperature",  # Body temperature
+    "9279-1": "respiratory_rate",  # Respiratory rate
+    "6690-2": "wbc",  # WBC
+    "2524-7": "lactate",  # Lactate
+    "2160-0": "creatinine",  # Creatinine
+    # sirs_score, qsofa_score are derived, not LOINC, but included as features
 }
 
-FEATURE_COLUMNS = ["heart_rate", "body_temperature", "systolic_bp", "wbc"]
+FEATURE_COLUMNS = [
+    "hr",
+    "bp_sys",
+    "bp_dia",
+    "o2_sat",
+    "temperature",
+    "respiratory_rate",
+    "wbc",
+    "lactate",
+    "creatinine",
+    "sirs_score",
+    "qsofa_score",
+]
 TARGET_COLUMN = "sepsis"
 
 SEPSIS_SNOMED_CODE = "91302003"
@@ -55,15 +74,9 @@ def extract_sepsis_label(patient_data: Dict) -> int:
 
 def extract_vital_signs(patient_data: Dict) -> Dict[str, Optional[float]]:
     """
-    Extract vital signs observations from FHIR bundle.
-
-    Args:
-        patient_data: Parsed FHIR bundle for a patient
-
-    Returns:
-        Dictionary mapping vital names to values (or None if missing)
+    Extract all relevant vital signs and labs from FHIR bundle.
     """
-    vitals: Dict[str, Optional[float]] = {vital: None for vital in LOINC_CODES.values()}
+    vitals: Dict[str, Optional[float]] = {col: None for col in FEATURE_COLUMNS}
 
     if "entry" not in patient_data:
         return vitals
@@ -71,7 +84,6 @@ def extract_vital_signs(patient_data: Dict) -> Dict[str, Optional[float]]:
     for entry in patient_data["entry"]:
         resource = entry.get("resource", {})
         if resource.get("resourceType") == "Observation":
-            # Most FHIR Observation values are under valueQuantity.value.
             value_quantity = resource.get("valueQuantity", {})
             coding_list = resource.get("code", {}).get("coding", [])
             for coding in coding_list:
@@ -81,7 +93,7 @@ def extract_vital_signs(patient_data: Dict) -> Dict[str, Optional[float]]:
                     if isinstance(value_quantity, dict) and "value" in value_quantity:
                         vitals[vital_name] = float(value_quantity["value"])
 
-            # Blood pressure often arrives as a panel Observation with components.
+            # Blood pressure and other panels
             for component in resource.get("component", []):
                 comp_coding_list = component.get("code", {}).get("coding", [])
                 comp_value_quantity = component.get("valueQuantity", {})
@@ -92,6 +104,20 @@ def extract_vital_signs(patient_data: Dict) -> Dict[str, Optional[float]]:
                     if loinc_code in LOINC_CODES:
                         vital_name = LOINC_CODES[loinc_code]
                         vitals[vital_name] = float(comp_value_quantity["value"])
+
+    # sirs_score and qsofa_score are not LOINC, but may be present as Observation.valueInteger
+    for entry in patient_data["entry"]:
+        resource = entry.get("resource", {})
+        if resource.get("resourceType") == "Observation":
+            code_text = resource.get("code", {}).get("text", "").lower()
+            if "sirs" in code_text and "score" in code_text:
+                val = resource.get("valueInteger")
+                if val is not None:
+                    vitals["sirs_score"] = float(val)
+            if "qsofa" in code_text and "score" in code_text:
+                val = resource.get("valueInteger")
+                if val is not None:
+                    vitals["qsofa_score"] = float(val)
 
     return vitals
 
@@ -176,29 +202,15 @@ def load_fhir_bundles() -> List[Dict]:
 
 def flatten_fhir_to_dataframe(bundles: List[Dict]) -> pd.DataFrame:
     """
-    Flatten FHIR bundles into structured DataFrame.
-
-    Args:
-        bundles: List of FHIR bundles
-
-    Returns:
-        DataFrame with features and target label
+    Flatten FHIR bundles into structured DataFrame with all features.
     """
     records = []
-
     for bundle in bundles:
         vitals = extract_vital_signs(bundle)
         sepsis_label = extract_sepsis_label(bundle)
-
-        record = {
-            "heart_rate": vitals["heart_rate"],
-            "body_temperature": vitals["body_temperature"],
-            "systolic_bp": vitals["systolic_bp"],
-            "wbc": vitals["wbc"],
-            "sepsis": sepsis_label,
-        }
+        record = {col: vitals.get(col) for col in FEATURE_COLUMNS}
+        record[TARGET_COLUMN] = sepsis_label
         records.append(record)
-
     df = pd.DataFrame.from_records(records, columns=[*FEATURE_COLUMNS, TARGET_COLUMN])
     return df
 
@@ -207,13 +219,7 @@ def apply_imputation_and_scaling(
     df: pd.DataFrame,
 ) -> Tuple[pd.DataFrame, StandardScaler]:
     """
-    Apply robust imputation and StandardScaler to dataset.
-
-    Args:
-        df: Raw DataFrame with potential missing values
-
-    Returns:
-        Tuple of (imputed and scaled DataFrame, fitted scaler)
+    Apply robust imputation and StandardScaler to dataset for all features.
     """
     missing_cols = [col for col in FEATURE_COLUMNS if col not in df.columns]
     if missing_cols:
@@ -223,8 +229,6 @@ def apply_imputation_and_scaling(
         return df.copy(), StandardScaler()
 
     df_imputed = df.copy()
-
-    # Handle fully-missing feature columns defensively to keep pipeline stable.
     for col in FEATURE_COLUMNS:
         series = pd.to_numeric(df_imputed[col], errors="coerce")
         fill_value = float(series.median()) if series.notna().any() else 0.0
@@ -232,7 +236,6 @@ def apply_imputation_and_scaling(
 
     scaler = StandardScaler()
     df_imputed[FEATURE_COLUMNS] = scaler.fit_transform(df_imputed[FEATURE_COLUMNS])
-
     return df_imputed, scaler
 
 

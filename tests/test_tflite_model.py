@@ -26,7 +26,7 @@ class TestTFLiteModel:
     def test_inference_valid_input(self):
         model = TFLiteModel(MODEL_PATH)
         model.load()
-        features = np.zeros((1, 20), dtype=np.float32)
+        features = np.zeros((1, 11), dtype=np.float32)
         result = model.infer(features)
         assert isinstance(result, float)
         assert 0.0 <= result <= 1.0
@@ -42,7 +42,7 @@ class TestTFLiteModel:
     def test_latency(self):
         model = TFLiteModel(MODEL_PATH)
         model.load()
-        features = np.zeros((1, 20), dtype=np.float32)
+        features = np.zeros((1, 11), dtype=np.float32)
         # Warm-up call to avoid cold-start overhead
         model.infer(features)
         start = time.time()
@@ -56,7 +56,7 @@ class TestTFLiteModel:
     def test_input_output_shapes(self):
         model = TFLiteModel(MODEL_PATH)
         model.load()
-        assert model.get_input_shape() == (1, 20)
+        assert model.get_input_shape() == (1, 11)
         assert model.get_output_shape() == (1, 1)
 
     def test_inference_without_loading(self):

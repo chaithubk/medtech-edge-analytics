@@ -80,7 +80,24 @@ require_cmd flake8
 require_cmd mypy
 require_cmd pytest
 
+
 echo -e "${BLUE}Running local quality gates (mode: ${MODE})${NC}"
+
+# Linting tools
+if ! command -v actionlint >/dev/null 2>&1; then
+  echo -e "${RED}error: actionlint is not installed or not on PATH${NC}" >&2
+  echo -e "${YELLOW}hint: Rebuild dev container or run tools/install_dev_tools.sh${NC}" >&2
+  exit 1
+fi
+if ! command -v shellcheck >/dev/null 2>&1; then
+  echo -e "${RED}error: shellcheck is not installed or not on PATH${NC}" >&2
+  echo -e "${YELLOW}hint: Rebuild dev container or run tools/install_dev_tools.sh${NC}" >&2
+  exit 1
+fi
+
+echo -e "${BLUE}==> Running actionlint (with shellcheck integration)${NC}"
+actionlint -color -shellcheck "$(command -v shellcheck)"
+echo -e "${GREEN}CI workflow lint checks passed.${NC}"
 
 if [[ "$MODE" == "fix" ]]; then
   echo -e "\n${YELLOW}Applying safe auto-fixes before checks...${NC}"
