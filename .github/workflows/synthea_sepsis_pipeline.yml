@@ -20,9 +20,9 @@ jobs:
     timeout-minutes: 60
     env:
       PYTHONUNBUFFERED: "1"
-      SYNTHEA_PATIENTS: "1000"
+      SYNTHEA_PATIENTS: "2500"
       SYNTHEA_SEED: "12345"
-      SYNTHEA_MODULES: ""
+      SYNTHEA_MODULES: "sepsis"
       SYNTHEA_VERSION: "3.3.0"
       RETRAIN_REASON: "${{ github.event_name }}"
     

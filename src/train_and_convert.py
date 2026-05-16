@@ -206,7 +206,7 @@ def main():
 
     print(f"Dataset shape: {X.shape}")
     print(f"Feature columns: {list(df.columns)}")
-    # Ensure y has only non-negative integers for bincount
+
     if np.any(y < 0):
         print(
             "Warning: Negative values found in target labels. "
@@ -215,7 +215,21 @@ def main():
         y_bincount = np.bincount(np.clip(y.astype(int), 0, None))
     else:
         y_bincount = np.bincount(y.astype(int))
+
     print(f"Target distribution: {y_bincount}")
+
+    unique_classes = np.unique(y.astype(int))
+    if len(unique_classes) < 2:
+        raise ValueError(
+            f"FATAL: Training dataset contains only a single class "
+            f"(classes={unique_classes.tolist()}). "
+            "Cannot train a binary classifier without both positive (sepsis=1) and negative "
+            "(sepsis=0) examples. "
+            "Ensure Synthea generated data with SYNTHEA_MODULES='sepsis' and verify that FHIR "
+            "bundles contain SNOMED code 91302003 for sepsis diagnoses. "
+            f"Current class distribution: "
+            f"{dict(zip(unique_classes.tolist(), map(int, y_bincount)))}"
+        )
 
     print("\nBuilding compact Keras model...")
     model = build_model(input_shape=X.shape[1])

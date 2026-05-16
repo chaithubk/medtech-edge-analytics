@@ -5,17 +5,17 @@ the model consumed by edge and Yocto builds.
 
 ## Scope
 
-- Training data source: synthetic FHIR records from Synthea sepsis module
-- Processing: FHIR flattening into tabular ML dataset
+- Training data source: synthetic FHIR records from Synthea with sepsis module strictly enforced (SYNTHEA_MODULES="sepsis", SYNTHEA_PATIENTS=2500) for reliable positive/negative class balance
+- Processing: FHIR flattening into tabular ML dataset with robust multi-stage imputation (median/mean/fallback) for all vital features
 - Output artifact: `models/imx8-compatible-sepsis.tflite`
 - Delivery: model committed to git and version-tagged by CI
 
 ## End-to-End Flow
 
-1. Generate synthetic FHIR data with Synthea into `data/raw_fhir/fhir/`.
-2. Flatten FHIR records into `data/processed/dataset.csv` via `src/flatten_fhir.py`.
-3. Train and validate model in `src/train_and_convert.py`.
-4. Quantize/export TensorFlow Lite model to `models/imx8-compatible-sepsis.tflite`.
+1. Generate synthetic FHIR data with Synthea (sepsis module only) into `data/raw_fhir/fhir/`.
+2. Flatten FHIR records into `data/processed/dataset.csv` via `src/flatten_fhir.py` (robust imputation).
+3. Train and validate model in `src/train_and_convert.py` (strict class-balance gate: aborts if only one class present).
+4. Quantize/export TensorFlow Lite model to `models/imx8-compatible-sepsis.tflite` (int8, NPU-compatible).
 5. Publish reports and metadata (`pipeline_report.md`, `model_metadata.json`, logs).
 6. If model changed, CI commits updated model and creates model version tag.
 
@@ -53,12 +53,15 @@ model tag for deterministic builds.
 
 ## Failure and Quality Gates
 
+
 The pipeline is considered failed when any of the following occur:
 
 - Synthea generation or flattening failure
 - Training/quantization failure
 - Validation/test failure
 - Artifact publication failure
+- Training data contains only a single class (all healthy or all sepsis): pipeline aborts with clear error
+
 
 Recommended local gate before pushing changes:
 

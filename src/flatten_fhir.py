@@ -219,7 +219,8 @@ def apply_imputation_and_scaling(
     df: pd.DataFrame,
 ) -> Tuple[pd.DataFrame, StandardScaler]:
     """
-    Apply robust imputation and StandardScaler to dataset for all features.
+    Apply robust multi-stage imputation (median + mean + fallback)
+    and StandardScaler to dataset for all features.
     """
     missing_cols = [col for col in FEATURE_COLUMNS if col not in df.columns]
     if missing_cols:
@@ -231,7 +232,20 @@ def apply_imputation_and_scaling(
     df_imputed = df.copy()
     for col in FEATURE_COLUMNS:
         series = pd.to_numeric(df_imputed[col], errors="coerce")
-        fill_value = float(series.median()) if series.notna().any() else 0.0
+
+        if series.isna().sum() == 0:
+            df_imputed[col] = series
+            continue
+
+        if series.notna().any():
+            median_val = series.median()
+            if pd.isna(median_val):
+                fill_value = float(series.mean())
+            else:
+                fill_value = float(median_val)
+        else:
+            fill_value = 0.0
+
         df_imputed[col] = series.fillna(fill_value)
 
     scaler = StandardScaler()
