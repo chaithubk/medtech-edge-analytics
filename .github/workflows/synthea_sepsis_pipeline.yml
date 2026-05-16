@@ -1,12 +1,11 @@
 name: Synthea Sepsis Model Pipeline
-  # (No-op: removed extra blank line to fix YAML parse error)
 on:
   push:
     branches:
       - main
   workflow_dispatch:
   schedule:
-    - cron: '0 2 * * 1'  # Weekly retraining: Every Monday at 02:00 UTC
+    - cron: '0 2 * * 1'
 permissions:
   contents: write
 
@@ -25,7 +24,7 @@ jobs:
       SYNTHEA_MODULES: "sepsis"
       SYNTHEA_VERSION: "3.3.0"
       RETRAIN_REASON: "${{ github.event_name }}"
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -55,13 +54,11 @@ jobs:
           echo "Downloading Synthea ${SYNTHEA_VERSION} from: ${SYNTHEA_URL}"
           curl -fsSL -o synthea-with-dependencies.jar "${SYNTHEA_URL}"
           echo "${SYNTHEA_VERSION}" > ${{ github.workspace }}/synthea_version.txt
-          cd -
 
       - name: Generate Synthea FHIR data
         run: |
           mkdir -p data/raw_fhir
           cd /tmp
-
           MODULE_ARGS=()
           if [ -n "${SYNTHEA_MODULES}" ]; then
             MODULE_ARGS=(-m "${SYNTHEA_MODULES}")
@@ -69,7 +66,6 @@ jobs:
           else
             echo "Using default Synthea module set"
           fi
-
           java -jar synthea-with-dependencies.jar \
             -p "${SYNTHEA_PATIENTS}" \
             -s "${SYNTHEA_SEED}" \
@@ -89,8 +85,10 @@ jobs:
           fi
 
       - name: Flatten FHIR data to CSV
-        run: |
-          python src/flatten_fhir.py
+        run: python src/flatten_fhir.py
+
+      - name: PhysioNet fallback if Synthea has no sepsis positives
+        run: python scripts/process_fallback.py
 
       - name: Train model and export TFLite
         run: |
@@ -98,17 +96,14 @@ jobs:
           python src/train_and_convert.py 2>&1 | tee artifacts/reports/train_and_convert.log
 
       - name: Verify model artifact exists
-        run: |
-          test -s models/imx8-compatible-sepsis.tflite
+        run: test -s models/imx8-compatible-sepsis.tflite
 
       - name: Build model metadata and run report
-        run: |
-          python .github/scripts/build_model_metadata_and_report.py
+        run: python .github/scripts/build_model_metadata_and_report.py
 
       - name: Generate retraining summary
         if: always()
-        run: |
-          bash .github/scripts/generate_retrain_summary.sh
+        run: bash .github/scripts/generate_retrain_summary.sh
 
       - name: Publish job summary
         run: |
@@ -139,8 +134,7 @@ jobs:
 
       - name: Check if model changed and commit
         id: commit
-        run: |
-          bash .github/scripts/commit_model_artifact.sh
+        run: bash .github/scripts/commit_model_artifact.sh
 
       - name: Create and push model release tag
         if: steps.commit.outputs.changed == 'true'
@@ -154,5 +148,4 @@ jobs:
 
       - name: Push updated model back to main
         if: steps.commit.outputs.changed == 'true'
-        run: |
-          git push origin main
+        run: git push origin main
