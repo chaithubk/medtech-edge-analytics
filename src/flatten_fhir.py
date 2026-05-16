@@ -200,19 +200,37 @@ def load_fhir_bundles() -> List[Dict]:
     return bundles
 
 
-def flatten_fhir_to_dataframe(bundles: List[Dict]) -> pd.DataFrame:
+def flatten_fhir_to_dataframe(bundles: List[Dict]) -> Tuple[pd.DataFrame, List[Tuple[str, int]]]:
     """
     Flatten FHIR bundles into structured DataFrame with all features.
+
+    Returns:
+        (DataFrame, list of (patient_id, sepsis_label) tuples for debugging)
     """
     records = []
-    for bundle in bundles:
+    patient_sepsis_labels = []
+
+    for bundle_idx, bundle in enumerate(bundles):
         vitals = extract_vital_signs(bundle)
         sepsis_label = extract_sepsis_label(bundle)
+
+        # Extract patient ID if available
+        patient_id = "unknown"
+        if "entry" in bundle:
+            for entry in bundle["entry"]:
+                resource = entry.get("resource", {})
+                if resource.get("resourceType") == "Patient":
+                    patient_id = resource.get("id", f"patient_{bundle_idx}")
+                    break
+
+        patient_sepsis_labels.append((patient_id, sepsis_label))
+
         record = {col: vitals.get(col) for col in FEATURE_COLUMNS}
         record[TARGET_COLUMN] = sepsis_label
         records.append(record)
+
     df = pd.DataFrame.from_records(records, columns=[*FEATURE_COLUMNS, TARGET_COLUMN])
-    return df
+    return df, patient_sepsis_labels
 
 
 def apply_imputation_and_scaling(
@@ -268,8 +286,23 @@ def main():
         )
 
     print("Flattening FHIR data...")
-    df = flatten_fhir_to_dataframe(bundles)
+    df, patient_sepsis_labels = flatten_fhir_to_dataframe(bundles)
     print(f"Created dataset with {len(df)} records")
+
+    # Debug: Show which patients have sepsis
+    sepsis_patients = [pid for pid, label in patient_sepsis_labels if label == 1]
+    if sepsis_patients:
+        print(
+            f"\n✓ Found {len(sepsis_patients)} patient(s) with sepsis diagnosis (SNOMED 91302003):"
+        )
+        for pid in sepsis_patients[:10]:  # Show first 10
+            print(f"  - {pid}")
+        if len(sepsis_patients) > 10:
+            print(f"  ... and {len(sepsis_patients) - 10} more")
+    else:
+        print("\n✗ WARNING: No patients with sepsis diagnosis found in FHIR data!")
+        print("  Ensure Synthea was run with SYNTHEA_MODULES='sepsis'")
+        print("  or increase patient count to get more sepsis cases.")
 
     print("Applying imputation and scaling...")
     df_processed, scaler = apply_imputation_and_scaling(df)
@@ -283,7 +316,7 @@ def main():
         pickle.dump(scaler, f)
     print(f"Saved fitted scaler to {scaler_path}")
 
-    print("Dataset statistics:")
+    print("\nDataset statistics:")
     print(f"  Sepsis cases: {df_processed['sepsis'].sum()}")
     print(f"  Healthy cases: {len(df_processed) - df_processed['sepsis'].sum()}")
     print(f"  Class balance: {df_processed['sepsis'].mean():.2%} positive")
