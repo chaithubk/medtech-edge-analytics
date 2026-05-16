@@ -6,7 +6,7 @@ This script analyzes git diffs and identifies changes that require
 model regeneration based on predefined patterns.
 
 Usage:
-    python scripts/detect_model_changes.py [base_branch] [head_branch]
+    python .github/scripts/detect_model_changes.py [base_branch] [head_branch]
 
 Environment Variables:
     BASE_BRANCH: Git branch to compare against (default: origin/main)

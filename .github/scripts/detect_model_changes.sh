@@ -1,18 +1,21 @@
 #!/bin/bash
 # Parse model detection output and set GitHub Actions outputs
 # 
-# Usage: bash scripts/detect_model_changes.sh [base_branch] [head_branch]
+# Usage: bash .github/scripts/detect_model_changes.sh [base_branch] [head_branch]
 #
 # Reads from detect_model_changes.py and exports GitHub Actions outputs
 # If GITHUB_OUTPUT is not set (local testing), outputs to stdout.
 
 set -e
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Run the Python detection script
 BASE_BRANCH="${1:-origin/main}"
 HEAD_BRANCH="${2:-HEAD}"
 
-DETECTION_OUTPUT=$(python scripts/detect_model_changes.py "$BASE_BRANCH" "$HEAD_BRANCH" 2>&1 | tail -1)
+DETECTION_OUTPUT=$(python "$SCRIPT_DIR/detect_model_changes.py" "$BASE_BRANCH" "$HEAD_BRANCH" 2>&1 | tail -1)
 
 echo "Detection output: $DETECTION_OUTPUT"
 
@@ -33,4 +36,3 @@ echo "model_changed=$MODEL_CHANGED"
 echo "matched_patterns=$MATCHED_PATTERNS"
 
 exit 0
-

@@ -29,7 +29,7 @@ jobs:
           BASE_BRANCH: origin/${{ github.base_ref }}
           HEAD_BRANCH: HEAD
         run: |
-          bash scripts/detect_model_changes.sh "$BASE_BRANCH" "$HEAD_BRANCH"
+          bash .github/scripts/detect_model_changes.sh "$BASE_BRANCH" "$HEAD_BRANCH"
 
       - name: Add label to PR
         if: steps.check.outputs.model_changed == 'true'
@@ -54,7 +54,7 @@ jobs:
             
             // Generate comment using the Python script
             const patterns = '${{ steps.check.outputs.matched_patterns }}';
-            const comment = execSync(`python scripts/format_model_regen_comment.py "${patterns}"`, { encoding: 'utf-8' });
+            const comment = execSync(`python .github/scripts/format_model_regen_comment.py "${patterns}"`, { encoding: 'utf-8' });
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,

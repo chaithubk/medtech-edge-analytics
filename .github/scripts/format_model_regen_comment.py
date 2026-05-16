@@ -6,7 +6,7 @@ This script generates a formatted GitHub comment with instructions
 for model regeneration when model-affecting changes are detected.
 
 Usage:
-    python scripts/format_model_regen_comment.py <comma-separated-patterns>
+    python .github/scripts/format_model_regen_comment.py <comma-separated-patterns>
 
 Environment Variables:
     MATCHED_PATTERNS: Comma-separated list of matched patterns
