@@ -46,6 +46,9 @@ htmlcov/
 
 # Local artifacts (not tracked)
 data/
+# But DO track sample training data
+!data/physionet_sample/
+!data/physionet_sample/**
 artifacts/
 
 # TensorFlow/ML
