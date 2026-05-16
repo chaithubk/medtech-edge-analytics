@@ -29,7 +29,7 @@ def test_load_fhir_bundles_recurses_nested_directories(tmp_path, monkeypatch):
 
 def test_flatten_fhir_to_dataframe_empty_keeps_expected_schema():
     """Even with zero bundles, the output DataFrame should preserve expected columns."""
-    df = flatten_fhir.flatten_fhir_to_dataframe([])
+    df, _ = flatten_fhir.flatten_fhir_to_dataframe([])
 
     assert list(df.columns) == [*flatten_fhir.FEATURE_COLUMNS, flatten_fhir.TARGET_COLUMN]
     assert df.empty
@@ -153,7 +153,7 @@ def test_load_fhir_bundles_groups_non_bundle_resources(tmp_path, monkeypatch):
     monkeypatch.setattr(flatten_fhir, "RAW_FHIR_DIR", tmp_path)
 
     bundles = flatten_fhir.load_fhir_bundles()
-    df = flatten_fhir.flatten_fhir_to_dataframe(bundles)
+    df, _ = flatten_fhir.flatten_fhir_to_dataframe(bundles)
 
     assert len(bundles) == 1
     assert len(df) == 1
