@@ -8,6 +8,7 @@ on:
     - cron: '0 2 * * 1'
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: synthea-sepsis-${{ github.ref }}
