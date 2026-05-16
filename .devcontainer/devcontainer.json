@@ -44,7 +44,7 @@
       "onAutoForward": "notify"
     }
   },
-  "postCreateCommand": "bash -lc 'set -euo pipefail; cd /workspaces/medtech-edge-analytics; rm -rf .venv; /usr/local/bin/python -m venv .venv; .venv/bin/python -m pip install --upgrade pip setuptools wheel; .venv/bin/pip install -r requirements-dev.txt'",
+  "postCreateCommand": "bash -lc 'set -euo pipefail; cd /workspaces/medtech-edge-analytics; rm -rf .venv; /usr/local/bin/python -m venv .venv; .venv/bin/python -m pip install --upgrade pip setuptools wheel; .venv/bin/pip install -r requirements-dev.txt; mkdir -p /usr/share/medtech/contracts/vitals /usr/share/medtech/models; cp contracts/vitals/vitals.schema.json /usr/share/medtech/contracts/vitals/vitals.schema.json; cp models/imx8-compatible-sepsis.tflite /usr/share/medtech/models/imx8-compatible-sepsis.tflite'",
   "postStartCommand": "bash -lc 'set -euo pipefail; cd /workspaces/medtech-edge-analytics; if ! .venv/bin/python -c \"import pytest, pandas, sklearn\" >/dev/null 2>&1; then .venv/bin/pip install -r requirements-dev.txt; fi'",
   "remoteUser": "root",
   "remoteEnv": {

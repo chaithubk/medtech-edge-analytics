@@ -6,7 +6,11 @@ model versions for deterministic releases.
 ## Delivery Contract
 
 - Canonical model path in repository: `models/imx8-compatible-sepsis.tflite`
-- Model updates are auto-committed by CI after successful retraining
+- Model updates are produced by CI after successful retraining.
+- NOTE: For safety and branch protection compliance CI creates or updates a
+	reviewable pull request (`model-update-sepsis-model`) containing the updated
+	model artifact; maintainers should review and merge the PR to incorporate
+	the model into `main`.
 - CI also creates model tags in format: `models/<synthea-version>-<timestamp>`
 - No runtime download is required on target devices
 
@@ -51,6 +55,24 @@ Point your inference service to the installed model path, for example:
 - `MODEL_PATH=/usr/share/medtech/models/imx8-compatible-sepsis.tflite`
 
 This keeps deployment deterministic and aligned with Yocto image contents.
+
+## Local development parity
+
+To make your development environment behave like the Yocto image, the
+devcontainer is configured to copy the vendored schema and canonical model into
+the expected rootfs locations on container setup. This mirrors production
+runtime paths and avoids needing to set environment variables in local runs.
+
+If you prefer not to copy files into `/usr/share/medtech/`, you can instead
+set the environment variables locally:
+
+```bash
+export MEDTECH_VITALS_SCHEMA=contracts/vitals/vitals.schema.json
+export MODEL_PATH=models/imx8-compatible-sepsis.tflite
+```
+
+Both approaches are supported; the devcontainer copy provides the closest
+parity with the Yocto image and is recommended for day-to-day development.
 
 ## Security and Credentials
 
