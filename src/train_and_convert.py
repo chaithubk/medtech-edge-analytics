@@ -31,13 +31,33 @@ def load_dataset() -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """
     Load preprocessed dataset.
 
+    If dataset.csv doesn't exist, intelligently load from PhysioNet or FHIR.
+
     Returns:
         Tuple of (full DataFrame, features array, labels array)
     """
     if not DATASET_PATH.exists():
-        raise FileNotFoundError(f"Dataset not found: {DATASET_PATH}")
+        print(f"Dataset not found at {DATASET_PATH}. Attempting to load from available sources...")
+        try:
+            from load_dataset import load_dataset as load_from_sources
 
-    df = pd.read_csv(DATASET_PATH)
+            df = load_from_sources()[0]
+            # Save for future runs
+            PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+            df.to_csv(DATASET_PATH, index=False)
+            print(f"✓ Loaded and saved dataset to {DATASET_PATH}")
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Dataset not found and could not load from available sources: {e}\n"
+                "Please either:\n"
+                "1. Download PhysioNet Challenge 2019:\n"
+                "   https://physionet.org/content/challenge-2019/1.0.0/\n"
+                "2. Generate Synthea data:\n"
+                "   SYNTHEA_PATIENTS=5000 bash scripts/generate_synthea_data.sh\n"
+                "See DATASET_SETUP.md for details."
+            ) from e
+    else:
+        df = pd.read_csv(DATASET_PATH)
     # Use all relevant numeric features from the schema
     feature_cols = [
         "hr",
