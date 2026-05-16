@@ -5,6 +5,8 @@ on:
     branches:
       - main
   workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly retraining: Every Monday at 02:00 UTC
 
 permissions:
   contents: read
@@ -22,6 +24,8 @@ jobs:
       SYNTHEA_PATIENTS: "1000"
       SYNTHEA_SEED: "12345"
       SYNTHEA_MODULES: ""
+      SYNTHEA_VERSION: "3.3.0"
+      RETRAIN_REASON: "${{ github.event_name }}"
     
     steps:
       - name: Checkout repository
@@ -48,8 +52,10 @@ jobs:
       - name: Download Synthea
         run: |
           cd /tmp
-          curl -fsSL -o synthea-with-dependencies.jar \
-            https://github.com/synthetichealth/synthea/releases/download/master-branch-latest/synthea-with-dependencies.jar
+          SYNTHEA_URL="https://github.com/synthetichealth/synthea/releases/download/v${SYNTHEA_VERSION}/synthea-with-dependencies.jar"
+          echo "Downloading Synthea ${SYNTHEA_VERSION} from: ${SYNTHEA_URL}"
+          curl -fsSL -o synthea-with-dependencies.jar "${SYNTHEA_URL}"
+          echo "${SYNTHEA_VERSION}" > ${{ github.workspace }}/synthea_version.txt
           cd -
 
       - name: Generate Synthea FHIR data
@@ -208,9 +214,48 @@ jobs:
           report_path.write_text("\n".join(line.strip() for line in report.splitlines()) + "\n", encoding="utf-8")
           PY
 
+      - name: Generate retraining summary
+        if: always()
+        run: |
+          mkdir -p artifacts/reports
+          SYNTHEA_VERSION=$(cat synthea_version.txt)
+          RETRAIN_TRIGGER="${{ github.event_name }}"
+          MODEL_SIZE=$(stat -f%z models/imx8-compatible-sepsis.tflite 2>/dev/null || stat -c%s models/imx8-compatible-sepsis.tflite 2>/dev/null || echo "unknown")
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          cat > artifacts/reports/retrain_summary.md << 'EOF'
+          # Automated Retraining Summary
+          
+          - **Timestamp:** $TIMESTAMP
+          - **Synthea Version:** $SYNTHEA_VERSION
+          - **Retraining Trigger:** $RETRAIN_TRIGGER
+          - **Model Size:** $MODEL_SIZE bytes
+          - **Git SHA:** ${{ github.sha }}
+          - **Workflow Run:** [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
+          ## Training Configuration
+          - Synthea Patients: ${{ env.SYNTHEA_PATIENTS }}
+          - Synthea Seed: ${{ env.SYNTHEA_SEED }}
+          - Run ID: ${{ github.run_id }}
+          
+          ## Artifacts Generated
+          - `models/imx8-compatible-sepsis.tflite` (quantized model)
+          - `artifacts/reports/pipeline_report.md` (detailed training report)
+          - `artifacts/reports/model_metadata.json` (model metadata)
+          - `artifacts/reports/train_and_convert.log` (training logs)
+          
+          ## Next Steps
+          - Review model performance metrics in `model_metadata.json`
+          - Compare accuracy with previous versions
+          - Deploy to edge devices if accuracy is acceptable
+          EOF
+
       - name: Publish job summary
         run: |
           cat artifacts/reports/pipeline_report.md >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Retraining Details" >> "$GITHUB_STEP_SUMMARY"
+          cat artifacts/reports/retrain_summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload TFLite artifact
         uses: actions/upload-artifact@v4
@@ -221,5 +266,6 @@ jobs:
             artifacts/reports/train_and_convert.log
             artifacts/reports/model_metadata.json
             artifacts/reports/pipeline_report.md
+            artifacts/reports/retrain_summary.md
           if-no-files-found: error
           retention-days: 30
