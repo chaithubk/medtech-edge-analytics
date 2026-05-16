@@ -7,11 +7,12 @@ as fully integer-quantized TFLite binary for i.MX 8 NPU delegation.
 """
 
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, cast
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from numpy.typing import NDArray
 from sklearn.utils.class_weight import compute_class_weight
 from tensorflow import keras
 
@@ -27,7 +28,7 @@ EPOCHS = 50
 RANDOM_SEED = 42
 
 
-def load_dataset() -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+def load_dataset() -> Tuple[pd.DataFrame, object, object]:  # type: ignore
     """
     Load preprocessed dataset.
 
@@ -42,6 +43,8 @@ def load_dataset() -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
             from load_dataset import load_dataset as load_from_sources
 
             df = load_from_sources()[0]
+            # Ensure a proper DataFrame type for static analysis
+            df = pd.DataFrame(df)
             # Save for future runs
             PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
             df.to_csv(DATASET_PATH, index=False)
@@ -58,31 +61,148 @@ def load_dataset() -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
             ) from e
     else:
         df = pd.read_csv(DATASET_PATH)
-    # Use all relevant numeric features from the schema
-    feature_cols = [
-        "hr",
-        "bp_sys",
-        "bp_dia",
-        "o2_sat",
-        "temperature",
-        "respiratory_rate",
-        "wbc",
-        "lactate",
-        "creatinine",
-        "sirs_score",
-        "qsofa_score",
-    ]
-    # Only keep columns that exist in the dataset
-    feature_cols = [col for col in feature_cols if col in df.columns]
+    # If dataset contains time-series per patient (patient_id + timestamp),
+    # compute the same 20 engineered features used at runtime by
+    # `src/inference/vital_buffer.py::VitalBuffer.get_all_features()`.
+    # Otherwise fall back to per-row snapshot features (legacy behaviour).
+    required_ts_cols = {"patient_id", "timestamp"}
 
-    X = df[feature_cols].values.astype(np.float32)
-    y = (
-        df["sepsis"].values.astype(np.int32)
-        if "sepsis" in df.columns
-        else np.zeros(len(df), dtype=np.int32)
-    )
+    if required_ts_cols.issubset(set(df.columns)):
+        # Ensure timestamp is numeric and sort per patient/time
+        df = df.copy()
+        df["timestamp"] = pd.to_numeric(df["timestamp"], errors="coerce").fillna(0).astype(int)
+        df = df.sort_values(["patient_id", "timestamp"]).reset_index(drop=True)
 
-    return df, X, y
+        # rolling window size (match VitalBuffer default window used at runtime)
+        WINDOW_SIZE = 60
+
+        def compute_stats(window_df: pd.DataFrame) -> dict:  # type: ignore
+            def arr(col: str) -> NDArray[np.float64]:
+                result = window_df[col].to_numpy(dtype=np.float64)
+                return cast(NDArray[np.float64], result)  # type: ignore
+
+            def trend(a: np.ndarray) -> float:
+                if len(a) < 2:
+                    return 0.0
+                coeffs = np.polyfit(np.arange(len(a)), a, 1)
+                return float(coeffs[0])
+
+            hr = arr("hr") if "hr" in window_df else np.array([])
+            bp_sys = arr("bp_sys") if "bp_sys" in window_df else np.array([])
+            bp_dia = arr("bp_dia") if "bp_dia" in window_df else np.array([])
+            o2 = arr("o2_sat") if "o2_sat" in window_df else np.array([])
+            rr = arr("respiratory_rate") if "respiratory_rate" in window_df else np.array([])
+            lactate = arr("lactate") if "lactate" in window_df else np.array([])
+            sirs = arr("sirs_score") if "sirs_score" in window_df else np.array([])
+            qsofa = arr("qsofa_score") if "qsofa_score" in window_df else np.array([])
+
+            # helper safe reductions
+            def mean(a: np.ndarray) -> float:
+                return float(np.mean(a)) if a.size else 0.0
+
+            def std(a: np.ndarray) -> float:
+                return float(np.std(a)) if a.size else 0.0
+
+            def amin(a: np.ndarray) -> float:
+                return float(np.min(a)) if a.size else 0.0
+
+            def amax(a: np.ndarray) -> float:
+                return float(np.max(a)) if a.size else 0.0
+
+            stats = {
+                "hr_mean": mean(hr),
+                "hr_std": std(hr),
+                "hr_min": amin(hr),
+                "hr_max": amax(hr),
+                "hr_trend": trend(hr),
+                "bp_sys_mean": mean(bp_sys),
+                "bp_sys_std": std(bp_sys),
+                "bp_sys_min": amin(bp_sys),
+                "bp_sys_max": amax(bp_sys),
+                "bp_sys_trend": trend(bp_sys),
+                "bp_dia_mean": mean(bp_dia),
+                "bp_dia_std": std(bp_dia),
+                "bp_dia_min": amin(bp_dia),
+                "bp_dia_max": amax(bp_dia),
+                "bp_dia_trend": trend(bp_dia),
+                "o2_mean": mean(o2),
+                "rr_mean": mean(rr),
+                "rr_trend": trend(rr),
+                "lactate_mean": mean(lactate),
+                "sirs_qsofa_mean": mean(sirs) + mean(qsofa),
+            }
+            return stats
+
+        engineered_rows = []
+        labels = []
+
+        # group per patient and compute rolling-stat features for each sample
+        for pid, group in df.groupby("patient_id"):
+            # Use a rolling window ending at each index
+            values = group.reset_index(drop=True)
+            for idx in range(len(values)):
+                start = max(0, idx - WINDOW_SIZE + 1)
+                window_df = values.iloc[start : idx + 1]
+                stats = compute_stats(window_df)
+                # Build feature vector in the same order as VitalBuffer.get_all_features()
+                vec = [
+                    stats["hr_mean"],
+                    stats["hr_std"],
+                    stats["hr_min"],
+                    stats["hr_max"],
+                    stats["hr_trend"],
+                    stats["bp_sys_mean"],
+                    stats["bp_sys_std"],
+                    stats["bp_sys_min"],
+                    stats["bp_sys_max"],
+                    stats["bp_sys_trend"],
+                    stats["bp_dia_mean"],
+                    stats["bp_dia_std"],
+                    stats["bp_dia_min"],
+                    stats["bp_dia_max"],
+                    stats["bp_dia_trend"],
+                    stats["o2_mean"],
+                    stats["rr_mean"],
+                    stats["rr_trend"],
+                    stats["lactate_mean"],
+                    stats["sirs_qsofa_mean"],
+                ]
+                engineered_rows.append(vec)
+                labels.append(int(values.iloc[idx]["sepsis"]) if "sepsis" in values.columns else 0)
+
+        X = np.array(engineered_rows, dtype=np.float32)
+        y = np.array(labels, dtype=np.int32)
+        X = cast(np.ndarray, X)  # type: ignore
+        y = cast(np.ndarray, y)  # type: ignore
+        return df, X, y  # type: ignore
+    else:
+        # Legacy per-row snapshot features (keep backward compatible)
+        feature_cols = [
+            "hr",
+            "bp_sys",
+            "bp_dia",
+            "o2_sat",
+            "temperature",
+            "respiratory_rate",
+            "wbc",
+            "lactate",
+            "creatinine",
+            "sirs_score",
+            "qsofa_score",
+        ]
+        feature_cols = [col for col in feature_cols if col in df.columns]
+
+        from typing import cast
+
+        X = df[feature_cols].values.astype(np.float32)
+        y = (
+            df["sepsis"].values.astype(np.int32)
+            if "sepsis" in df.columns
+            else np.zeros(len(df), dtype=np.int32)
+        )
+        X = cast(np.ndarray, X)
+        y = cast(np.ndarray, y)
+        return df, X, y
 
 
 def build_model(input_shape: int) -> keras.Model:
