@@ -46,17 +46,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           last_tag="$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || true)"
           has_tag=true
           if [[ -z "$last_tag" ]]; then
             last_tag="v0.0.0"
             has_tag=false
           fi
-
           previous_version="${last_tag#v}"
           custom_version="${{ inputs.custom_version }}"
-
           if [[ -n "$custom_version" ]]; then
             if [[ "$custom_version" != v* ]]; then
               new_version="v$custom_version"
@@ -119,9 +116,11 @@ jobs:
             exit 1
           fi
 
-          echo "last_tag=$last_tag" >> "$GITHUB_OUTPUT"
-          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
-          echo "has_tag=$has_tag" >> "$GITHUB_OUTPUT"
+          {
+            echo "last_tag=$last_tag"
+            echo "new_version=$new_version"
+            echo "has_tag=$has_tag"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Generate changelog
         id: changelog

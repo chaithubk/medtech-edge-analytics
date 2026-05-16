@@ -1,6 +1,5 @@
-name: Lint Workflows
 
-description: Lint all GitHub Actions workflows using actionlint
+name: Lint Workflows
 
 on:
   push:

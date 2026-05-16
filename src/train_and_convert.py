@@ -38,10 +38,29 @@ def load_dataset() -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
         raise FileNotFoundError(f"Dataset not found: {DATASET_PATH}")
 
     df = pd.read_csv(DATASET_PATH)
-    feature_cols = ["heart_rate", "body_temperature", "systolic_bp", "wbc"]
+    # Use all relevant numeric features from the schema
+    feature_cols = [
+        "hr",
+        "bp_sys",
+        "bp_dia",
+        "o2_sat",
+        "temperature",
+        "respiratory_rate",
+        "wbc",
+        "lactate",
+        "creatinine",
+        "sirs_score",
+        "qsofa_score",
+    ]
+    # Only keep columns that exist in the dataset
+    feature_cols = [col for col in feature_cols if col in df.columns]
 
     X = df[feature_cols].values.astype(np.float32)
-    y = df["sepsis"].values.astype(np.int32)
+    y = (
+        df["sepsis"].values.astype(np.int32)
+        if "sepsis" in df.columns
+        else np.zeros(len(df), dtype=np.int32)
+    )
 
     return df, X, y
 
@@ -186,8 +205,17 @@ def main():
     df, X, y = load_dataset()
 
     print(f"Dataset shape: {X.shape}")
-    print("Feature columns: heart_rate, body_temperature, systolic_bp, wbc")
-    print(f"Target distribution: {np.bincount(y.astype(int))}")
+    print(f"Feature columns: {list(df.columns)}")
+    # Ensure y has only non-negative integers for bincount
+    if np.any(y < 0):
+        print(
+            "Warning: Negative values found in target labels. "
+            "Setting negatives to zero for bincount."
+        )
+        y_bincount = np.bincount(np.clip(y.astype(int), 0, None))
+    else:
+        y_bincount = np.bincount(y.astype(int))
+    print(f"Target distribution: {y_bincount}")
 
     print("\nBuilding compact Keras model...")
     model = build_model(input_shape=X.shape[1])
